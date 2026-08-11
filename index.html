@@ -1,0 +1,1076 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>打刻アプリ</title>
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js"></script>
+  <style>
+    body { margin: 0; min-height: 100vh; background: #f5f5f5; font-family: sans-serif; color: #333; }
+    #topBar { display: flex; align-items: center; gap: 10px; padding: 12px 16px 0; background: white; border-bottom: 1px solid #eee; }
+    #topBar .spacer { margin-left: auto; }
+    #userInfo { display: flex; align-items: center; gap: 8px; margin-right: 16px; }
+    #userInfo.hidden { display: none; }
+    #userDisplayName { font-size: 14px; color: #666; }
+    #userAvatar { width: 32px; height: 32px; border-radius: 50%; background: #2e9e5b; color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; }
+    #logoutBtn { border: none; background: #e0e0e0; color: #444; border-radius: 6px; padding: 6px 12px; font-size: 13px; cursor: pointer; }
+    #devBadge { display: none; background: #e0a83e; color: white; font-size: 15px; font-weight: bold; padding: 8px 16px; border-radius: 20px; cursor: pointer; }
+    #devBadge.show { display: inline-block; }
+    #devOffBtn { display: none; background: #c0392b; color: white; font-size: 14px; padding: 8px 14px; border: none; border-radius: 20px; cursor: pointer; }
+    #devOffBtn.show { display: inline-block; }
+    #settingsBtn { border: none; background: #e6e6e6; color: #444; border-radius: 6px; padding: 6px 12px; font-size: 13px; cursor: pointer; }
+
+    /* ログイン画面 */
+    #loginView { display: none; position: fixed; inset: 0; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center; z-index: 200; }
+    #loginView.show { display: flex; }
+    #loginBox { background: white; border-radius: 14px; padding: 40px; width: 360px; max-width: 90%; box-shadow: 0 8px 30px rgba(0,0,0,0.25); text-align: center; }
+    #loginBox h1 { margin: 0 0 8px; font-size: 28px; color: #333; }
+    #loginBox .subtitle { color: #888; margin-bottom: 30px; font-size: 14px; }
+    #googleLoginBtn { width: 100%; padding: 14px; border: none; border-radius: 8px; background: white; color: #333; font-size: 15px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; border: 1px solid #ddd; }
+    #googleLoginBtn:hover { background: #f8f8f8; }
+    .google-icon { width: 20px; height: 20px; }
+
+    #titleRow { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 6px 16px 0; flex-wrap: wrap; }
+    #titleRow h1 { font-size: 24px; margin: 0; user-select: none; }
+
+    #clock { text-align: center; font-size: 48px; font-weight: bold; margin: 10px 0 6px; }
+    #clockMode { text-align: center; font-size: 13px; color: #c0392b; margin-bottom: 24px; min-height: 16px; }
+
+    /* ホーム画面のまとまり（申請画面のとき隠す） */
+    #homeView.hide { display: none; }
+
+    #buttons { display: flex; flex-wrap: wrap; justify-content: center; gap: 16px; margin-bottom: 16px; }
+    .punchBtn { width: 130px; height: 90px; font-size: 20px; color: white; border: none; border-radius: 10px; cursor: pointer; }
+    .punchBtn.in { background: #2e9e5b; }
+    .punchBtn.out { background: #c0392b; }
+    .punchBtn.leave { background: #4a3f8f; }
+    .punchBtn.back { background: #4a3f8f; }
+
+    #applyButtons { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-bottom: 30px; }
+    .applyBtn { padding: 12px 18px; font-size: 15px; border: none; border-radius: 8px; background: #6b7d8f; color: white; cursor: pointer; }
+
+    #history { max-width: 520px; margin: 0 auto 30px; background: white; border-radius: 10px; padding: 10px 0; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+    .histHeader { display: flex; align-items: center; justify-content: space-between; padding: 4px 16px 12px; gap: 6px; flex-wrap: wrap; }
+    .histHeader h2 { font-size: 16px; margin: 0; color: #666; margin-right: auto; }
+    .pageBtn { border: none; background: #eef; color: #4a3f8f; border-radius: 6px; padding: 6px 10px; font-size: 12px; cursor: pointer; }
+    .fixModeBtn { border: none; background: #f0e2c8; color: #7a5a10; border-radius: 6px; padding: 6px 10px; font-size: 12px; cursor: pointer; }
+    .fixModeBtn.active { background: #e0a83e; color: white; }
+
+    .dayHeading { font-size: 13px; color: #4a3f8f; background: #f0f0fa; padding: 6px 20px; margin-top: 6px; font-weight: bold; }
+    .record { display: flex; align-items: center; justify-content: space-between; padding: 10px 20px; border-top: 1px solid #eee; flex-wrap: wrap; }
+    .record .label { font-weight: bold; }
+    .record .time { color: #666; margin-left: auto; margin-right: 12px; }
+    .empty { text-align: center; color: #aaa; padding: 20px; }
+    .record.pending { background: #fff9ec; }
+    .record .pendingTag { font-size: 11px; color: #b26a00; background: #ffe9c2; border-radius: 4px; padding: 2px 6px; margin-left: 8px; }
+    .record.canceled { background: #f4f4f4; color: #aaa; }
+    .record.canceled .label { text-decoration: line-through; }
+    .record.canceled .time { text-decoration: line-through; }
+    .record .canceledTag { font-size: 11px; color: #888; background: #e2e2e2; border-radius: 4px; padding: 2px 6px; margin-left: 8px; }
+    .record .editedTag { font-size: 11px; color: #1c6b8c; background: #d3ecf5; border-radius: 4px; padding: 2px 6px; margin-left: 8px; }
+
+    .rowBtn { border: none; border-radius: 6px; padding: 6px 10px; font-size: 12px; cursor: pointer; margin-left: 6px; }
+    .rowBtn.confirm { background: #2e9e5b; color: white; }
+    .rowBtn.remove { background: #e0e0e0; color: #555; }
+    .rowBtn.restore { background: #4a3f8f; color: white; }
+    .rowBtn.edit { background: #1c8ca0; color: white; }
+    .rowBtn.delete { background: #7a1f1f; color: white; }
+
+    .auditItem { padding: 12px 20px; border-top: 1px solid #eee; }
+    .auditItem .auditHead { font-weight: bold; margin-bottom: 6px; }
+    .auditItem .auditHead .dim { color: #aaa; font-weight: normal; font-size: 13px; margin-left: 8px; }
+    .auditLog { list-style: none; margin: 0; padding: 0; }
+    .auditLog li { font-size: 13px; color: #666; padding: 3px 0 3px 14px; border-left: 2px solid #ddd; margin-left: 4px; }
+    .auditLog li .logTime { color: #999; margin-right: 8px; }
+    .auditItem.deleted .auditHead { color: #7a1f1f; }
+
+    /* 申請履歴（ホーム下部） */
+    #appHistory { max-width: 520px; margin: 0 auto 40px; background: white; border-radius: 10px; padding: 10px 0; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+    #appHistory h2 { font-size: 16px; text-align: center; color: #666; margin: 6px 0 12px; }
+    .appRecord { padding: 12px 20px; border-top: 1px solid #eee; }
+    .appRecord .appHead { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px; }
+    .appRecord .appType { font-weight: bold; }
+    .appRecord .appStatus { font-size: 11px; color: #b26a00; background: #ffe9c2; border-radius: 4px; padding: 2px 8px; }
+    .appRecord .appDetail { font-size: 13px; color: #777; margin-top: 6px; line-height: 1.5; }
+    .appRecord .appCancel { border: none; border-radius: 6px; padding: 5px 10px; font-size: 12px; cursor: pointer; background: #e0e0e0; color: #555; }
+    .appRecord.canceled { background: #f4f4f4; color: #aaa; }
+    .appRecord.canceled .appType { text-decoration: line-through; }
+
+    /* 申請フォーム画面 */
+    #applyView { display: none; max-width: 520px; margin: 0 auto 40px; background: white; border-radius: 10px; padding: 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+    #applyView.show { display: block; }
+    #applyView h2 { font-size: 20px; margin: 0 0 4px; text-align: center; }
+    #applyView .formSub { text-align: center; color: #888; font-size: 13px; margin-bottom: 20px; }
+    .formRow { margin-bottom: 16px; }
+    .formRow label { display: block; font-size: 13px; color: #555; margin-bottom: 6px; font-weight: bold; }
+    .formRow label .req { color: #c0392b; margin-left: 4px; font-size: 12px; }
+    .formRow input, .formRow textarea, .formRow select { width: 100%; box-sizing: border-box; font-size: 15px; padding: 8px 10px; border: 1px solid #ccc; border-radius: 8px; font-family: inherit; }
+    .formRow textarea { min-height: 70px; resize: vertical; }
+    .formError { color: #c0392b; font-size: 13px; margin-bottom: 12px; min-height: 16px; }
+    .formButtons { display: flex; justify-content: space-between; gap: 12px; }
+    .formBackBtn { flex: 1; padding: 12px; font-size: 15px; border: none; border-radius: 8px; background: #e0e0e0; color: #444; cursor: pointer; }
+    .formSubmitBtn { flex: 1; padding: 12px; font-size: 15px; border: none; border-radius: 8px; background: #2e9e5b; color: white; cursor: pointer; }
+
+    #overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: none; align-items: center; justify-content: center; }
+    #overlay.show { display: flex; }
+    #dialog { background: white; border-radius: 14px; padding: 28px 24px; width: 360px; max-width: 90%; box-shadow: 0 8px 30px rgba(0,0,0,0.25); text-align: center; }
+    #dialog .lead { font-size: 15px; color: #666; margin-bottom: 16px; }
+    .compare { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+    .compare .col { flex: 1; background: #f5f5f5; border-radius: 10px; padding: 12px 8px; }
+    .compare .col .caption { font-size: 12px; color: #999; margin-bottom: 4px; }
+    .compare .col .value { font-size: 18px; font-weight: bold; }
+    .compare .col.now { background: #eaf5ee; }
+    .compare .col.now .value { color: #2e9e5b; }
+    .compare .col.now.warn { background: #fff6e5; }
+    .compare .col.now.warn .value { color: #b26a00; }
+    #warnText { font-size: 13px; color: #b26a00; background: #fff6e5; border-radius: 8px; padding: 10px 12px; margin: 12px 0 4px; display: none; text-align: left; line-height: 1.5; }
+    #warnText.show { display: block; }
+    #confirmQuestion { font-size: 16px; margin: 18px 0 22px; }
+    .dialogButtons { display: flex; justify-content: space-between; }
+    .dialogButtons.hide { display: none; }
+    .cancelBtn { padding: 12px 22px; font-size: 15px; border: none; border-radius: 8px; background: #e0e0e0; color: #444; cursor: pointer; }
+    .okBtn { padding: 12px 22px; font-size: 15px; border: none; border-radius: 8px; background: #2e9e5b; color: white; cursor: pointer; }
+    .okBtn:disabled { background: #b7d9c3; cursor: not-allowed; }
+    #fixButtons { display: none; flex-direction: column; gap: 10px; }
+    #fixButtons.show { display: flex; }
+    .fixBtn { padding: 14px; font-size: 15px; border: none; border-radius: 8px; cursor: pointer; text-align: center; }
+    .fixBtn.primary { background: #2e9e5b; color: white; }
+    .fixBtn.secondary { background: #f0e2c8; color: #7a5a10; }
+    .fixBtn.ghost { background: #eee; color: #666; }
+    #timeInputArea { display: none; }
+    #timeInputArea.show { display: block; }
+    #timeInputArea .fillLead { font-size: 15px; margin-bottom: 6px; }
+    #timeInputArea .fillSub { font-size: 13px; color: #888; margin-bottom: 16px; line-height: 1.5; }
+    #timeInput { font-size: 28px; padding: 8px 12px; border: 2px solid #ccc; border-radius: 8px; text-align: center; }
+    #timeInputButtons { display: flex; justify-content: space-between; margin-top: 22px; }
+    #deleteArea { display: none; }
+    #deleteArea.show { display: block; }
+    #deleteArea .delLead { font-size: 16px; margin-bottom: 8px; color: #7a1f1f; font-weight: bold; }
+    #deleteArea .delSub { font-size: 13px; color: #888; margin-bottom: 22px; line-height: 1.5; }
+    #deleteArea .delButtons { display: flex; justify-content: space-between; }
+    .deleteConfirmBtn { padding: 12px 22px; font-size: 15px; border: none; border-radius: 8px; background: #7a1f1f; color: white; cursor: pointer; }
+
+    #settingsPanel { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); align-items: center; justify-content: center; z-index: 90; }
+    #settingsPanel.show { display: flex; }
+    #settingsBox { background: white; border-radius: 14px; padding: 24px; width: 400px; max-width: 92%; max-height: 84vh; overflow-y: auto; box-shadow: 0 8px 30px rgba(0,0,0,0.25); }
+    #settingsBox h2 { margin: 0 0 16px; font-size: 20px; text-align: center; }
+    .setSection { margin-bottom: 22px; }
+    .setSection .setTitle { font-size: 14px; font-weight: bold; color: #4a3f8f; margin-bottom: 10px; border-bottom: 1px solid #eee; padding-bottom: 4px; }
+    .nameRow { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+    .nameRow .nameCaption { width: 80px; font-size: 13px; color: #888; }
+    .nameRow input { flex: 1; font-size: 14px; padding: 6px 8px; border: 1px solid #ccc; border-radius: 6px; }
+    .toggleRow { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 14px; }
+    #settingsClose { width: 100%; padding: 12px; font-size: 15px; border: none; border-radius: 8px; background: #2e9e5b; color: white; cursor: pointer; margin-top: 6px; }
+
+    #devPanel { display: none; position: fixed; top: 0; left: 0; right: 0; background: #2b2b2b; color: #eee; padding: 14px 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.4); font-size: 14px; z-index: 100; }
+    #devPanel.show { display: block; }
+    #devPanel .devTitle { font-weight: bold; margin-bottom: 10px; color: #ffca6b; }
+    #devPanel .devRow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+    #devPanel input[type="datetime-local"] { font-size: 14px; padding: 4px 6px; border-radius: 6px; border: none; }
+    #devPanel .devBtn { border: none; border-radius: 6px; padding: 6px 12px; font-size: 13px; cursor: pointer; background: #555; color: white; }
+    #devPanel .devClose { background: #a33; }
+  </style>
+</head>
+<body>
+  <div id="devPanel">
+    <div class="devTitle">開発者モード</div>
+    <div class="devRow"><label><input type="checkbox" id="devEnable"> 開発者モードON（完全削除・完全履歴を解禁）</label></div>
+    <div class="devRow"><label><input type="checkbox" id="useFakeTime"> 時刻を手動指定する（固定）</label></div>
+    <div class="devRow"><input type="datetime-local" id="fakeTimeInput" step="1"><button class="devBtn" id="applyFakeBtn">この時刻に固定</button></div>
+    <div class="devRow"><label><input type="checkbox" id="nightMode"> 夜勤モード（朝4時の自動区切りをしない）</label></div>
+    <div class="devRow"><button class="devBtn devClose" id="devCloseBtn">閉じる</button></div>
+  </div>
+
+  <!-- ログイン画面 -->
+  <div id="loginView">
+    <div id="loginBox">
+      <h1>打刻アプリ</h1>
+      <p class="subtitle">Googleアカウントでログイン</p>
+      <button id="googleLoginBtn">
+        <svg class="google-icon" viewBox="0 0 24 24"><path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+        Googleでログイン
+      </button>
+    </div>
+  </div>
+
+  <div id="topBar">
+    <div id="userInfo" class="hidden">
+      <div id="userAvatar">U</div>
+      <div id="userDisplayName">ユーザー名</div>
+    </div>
+    <span class="spacer"></span>
+    <button id="settingsBtn">設定</button>
+    <button id="logoutBtn" class="hidden">ログアウト</button>
+  </div>
+
+  <div id="titleRow">
+    <h1 id="appTitle">打刻アプリ</h1>
+    <span id="devBadge">⚙ 開発者モードON</span>
+    <button id="devOffBtn">通常モードに戻す</button>
+  </div>
+
+  <div id="clock">00:00:00</div>
+  <div id="clockMode"></div>
+
+  <!-- ホーム画面 -->
+  <div id="homeView">
+    <div id="buttons">
+      <button class="punchBtn in"    data-type="出勤" id="btnIn">出勤</button>
+      <button class="punchBtn out"   data-type="退勤" id="btnOut">退勤</button>
+      <button class="punchBtn leave" data-type="外出" id="btnLeave">外出</button>
+      <button class="punchBtn back"  data-type="戻り" id="btnBack">戻り</button>
+    </div>
+
+    <div id="applyButtons">
+      <button class="applyBtn" id="applyOvertime" data-apply="残業申請">残業申請</button>
+      <button class="applyBtn" id="applyHoliday" data-apply="休日出勤">休日出勤</button>
+      <button class="applyBtn" id="applyLeave" data-apply="休暇申請">休暇申請</button>
+    </div>
+
+    <div id="history">
+      <div class="histHeader">
+        <h2 id="histTitle">本日の打刻</h2>
+        <button class="fixModeBtn" id="fixModeBtn">打刻を修正</button>
+        <button class="pageBtn" id="pageBtn">全履歴 ▶</button>
+      </div>
+      <div id="records"><div class="empty">まだ打刻がありません</div></div>
+    </div>
+
+    <div id="appHistory">
+      <h2>申請の履歴</h2>
+      <div id="appRecords"><div class="empty">まだ申請がありません</div></div>
+    </div>
+  </div>
+
+  <!-- 申請フォーム画面 -->
+  <div id="applyView">
+    <h2 id="applyFormTitle">申請</h2>
+    <div class="formSub" id="applyFormSub">必要事項を入力してください</div>
+    <div id="formFields"></div>
+    <div class="formError" id="formError"></div>
+    <div class="formButtons">
+      <button class="formBackBtn" id="formBackBtn">戻る</button>
+      <button class="formSubmitBtn" id="formSubmitBtn">申請する</button>
+    </div>
+  </div>
+
+  <!-- 設定パネル -->
+  <div id="settingsPanel">
+    <div id="settingsBox">
+      <h2>設定</h2>
+      <div class="setSection">
+        <div class="setTitle">打刻ボタンの名称</div>
+        <div class="nameRow"><span class="nameCaption">出勤</span><input id="nameIn" type="text"></div>
+        <div class="nameRow"><span class="nameCaption">退勤</span><input id="nameOut" type="text"></div>
+        <div class="nameRow"><span class="nameCaption">外出</span><input id="nameLeave" type="text"></div>
+        <div class="nameRow"><span class="nameCaption">戻り</span><input id="nameBack" type="text"></div>
+      </div>
+      <div class="setSection">
+        <div class="setTitle">申請ボタンの表示</div>
+        <label class="toggleRow"><input type="checkbox" id="showOvertime"> 残業申請ボタンを表示</label>
+        <label class="toggleRow"><input type="checkbox" id="showHoliday"> 休日出勤ボタンを表示</label>
+        <label class="toggleRow"><input type="checkbox" id="showLeave"> 休暇申請ボタンを表示</label>
+      </div>
+      <button id="settingsClose">閉じる</button>
+    </div>
+  </div>
+
+  <div id="overlay">
+    <div id="dialog">
+      <div id="confirmArea">
+        <div class="lead" id="leadText">この内容で打刻します</div>
+        <div class="compare">
+          <div class="col"><div class="caption">前回の打刻</div><div class="value" id="prevValue">なし</div></div>
+          <div class="col now" id="nowCol"><div class="caption">今回の打刻</div><div class="value" id="nowValue">-</div></div>
+        </div>
+        <div id="warnText"></div>
+        <div id="confirmQuestion">この打刻でよろしいですか？</div>
+        <div class="dialogButtons" id="normalButtons">
+          <button class="cancelBtn" id="cancelBtn">キャンセル</button>
+          <button class="okBtn" id="okBtn">確定する</button>
+        </div>
+        <div id="fixButtons">
+          <button class="fixBtn primary"   id="fixFillBtn">先に不足分を補う</button>
+          <button class="fixBtn secondary" id="fixCancelBtn">今の打刻をやめる</button>
+          <button class="fixBtn ghost"     id="fixForceBtn">それでもこのまま打刻する</button>
+        </div>
+      </div>
+      <div id="timeInputArea">
+        <div class="fillLead" id="fillLeadText">時刻を入力</div>
+        <div class="fillSub" id="fillSubText"></div>
+        <input type="time" id="timeInput" step="60">
+        <div id="timeInputButtons">
+          <button class="cancelBtn" id="fillBackBtn">戻る</button>
+          <button class="okBtn" id="fillDoneBtn">この時刻にする</button>
+        </div>
+      </div>
+      <div id="deleteArea">
+        <div class="delLead">本当に完全削除しますか？</div>
+        <div class="delSub" id="delSubText"></div>
+        <div class="delButtons">
+          <button class="cancelBtn" id="deleteBackBtn">やめる</button>
+          <button class="deleteConfirmBtn" id="deleteConfirmBtn">完全に削除する</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ===== Firebase初期化 =====
+    // 注意: 以下のFirebaseプロジェクト設定を自分のプロジェクトに置き換えてください
+    const firebaseConfig = {
+      apiKey: "YOUR_API_KEY",
+      authDomain: "YOUR_AUTH_DOMAIN",
+      projectId: "YOUR_PROJECT_ID",
+      storageBucket: "YOUR_STORAGE_BUCKET",
+      messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+      appId: "YOUR_APP_ID"
+    };
+
+    // Firebase初期化（configが設定されている場合のみ）
+    let auth = null;
+    let currentUser = null;
+    const isFirebaseConfigured = firebaseConfig.apiKey && firebaseConfig.apiKey !== "YOUR_API_KEY";
+
+    if (isFirebaseConfigured) {
+      firebase.initializeApp(firebaseConfig);
+      auth = firebase.auth();
+      const db = firebase.firestore();
+    }
+
+    // ===== UI要素の取得 =====
+    const loginView = document.getElementById("loginView");
+    const googleLoginBtn = document.getElementById("googleLoginBtn");
+    const userInfo = document.getElementById("userInfo");
+    const userDisplayName = document.getElementById("userDisplayName");
+    const userAvatar = document.getElementById("userAvatar");
+    const logoutBtn = document.getElementById("logoutBtn");
+    const homeView = document.getElementById("homeView");
+
+    const clock = document.getElementById("clock");
+    const clockMode = document.getElementById("clockMode");
+    const records = document.getElementById("records");
+    const overlay = document.getElementById("overlay");
+    const appTitle = document.getElementById("appTitle");
+    const histTitle = document.getElementById("histTitle");
+    const pageBtn = document.getElementById("pageBtn");
+    const fixModeBtn = document.getElementById("fixModeBtn");
+    const devBadge = document.getElementById("devBadge");
+    const devOffBtn = document.getElementById("devOffBtn");
+    const settingsBtn = document.getElementById("settingsBtn");
+
+    const applyView = document.getElementById("applyView");
+    const applyFormTitle = document.getElementById("applyFormTitle");
+    const applyFormSub = document.getElementById("applyFormSub");
+    const formFields = document.getElementById("formFields");
+    const formError = document.getElementById("formError");
+    const formBackBtn = document.getElementById("formBackBtn");
+    const formSubmitBtn = document.getElementById("formSubmitBtn");
+    const appRecords = document.getElementById("appRecords");
+
+    const confirmArea = document.getElementById("confirmArea");
+    const timeInputArea = document.getElementById("timeInputArea");
+    const deleteArea = document.getElementById("deleteArea");
+    const prevValue = document.getElementById("prevValue");
+    const nowValue = document.getElementById("nowValue");
+    const nowCol = document.getElementById("nowCol");
+    const leadText = document.getElementById("leadText");
+    const warnText = document.getElementById("warnText");
+    const confirmQuestion = document.getElementById("confirmQuestion");
+    const normalButtons = document.getElementById("normalButtons");
+    const fixButtons = document.getElementById("fixButtons");
+    const okBtn = document.getElementById("okBtn");
+    const cancelBtn = document.getElementById("cancelBtn");
+    const fixFillBtn = document.getElementById("fixFillBtn");
+    const fixCancelBtn = document.getElementById("fixCancelBtn");
+    const fixForceBtn = document.getElementById("fixForceBtn");
+    const fillLeadText = document.getElementById("fillLeadText");
+    const fillSubText = document.getElementById("fillSubText");
+    const timeInput = document.getElementById("timeInput");
+    const fillBackBtn = document.getElementById("fillBackBtn");
+    const fillDoneBtn = document.getElementById("fillDoneBtn");
+    const delSubText = document.getElementById("delSubText");
+    const deleteBackBtn = document.getElementById("deleteBackBtn");
+    const deleteConfirmBtn = document.getElementById("deleteConfirmBtn");
+
+    const btnIn = document.getElementById("btnIn");
+    const btnOut = document.getElementById("btnOut");
+    const btnLeave = document.getElementById("btnLeave");
+    const btnBack = document.getElementById("btnBack");
+    const applyOvertime = document.getElementById("applyOvertime");
+    const applyHoliday = document.getElementById("applyHoliday");
+    const applyLeave = document.getElementById("applyLeave");
+
+    const settingsPanel = document.getElementById("settingsPanel");
+    const settingsClose = document.getElementById("settingsClose");
+    const nameIn = document.getElementById("nameIn");
+    const nameOut = document.getElementById("nameOut");
+    const nameLeave = document.getElementById("nameLeave");
+    const nameBack = document.getElementById("nameBack");
+    const showOvertime = document.getElementById("showOvertime");
+    const showHoliday = document.getElementById("showHoliday");
+    const showLeave = document.getElementById("showLeave");
+
+    const devPanel = document.getElementById("devPanel");
+    const devEnable = document.getElementById("devEnable");
+    const useFakeTime = document.getElementById("useFakeTime");
+    const fakeTimeInput = document.getElementById("fakeTimeInput");
+    const applyFakeBtn = document.getElementById("applyFakeBtn");
+    const devCloseBtn = document.getElementById("devCloseBtn");
+    const nightMode = document.getElementById("nightMode");
+
+    let fakeTime = null;
+    let devMode = false;
+    function getNow() { return (fakeTime !== null) ? new Date(fakeTime) : new Date(); }
+
+    const history = [];
+    const deletedLog = [];
+    const applications = [];   // 申請の記録（勤怠とは別）
+    let pending = null;
+    let lockTimer = null;
+    let fillType = null;
+    let page = 0;
+    let fixMode = false;
+    let editIndex = null;
+    let deleteIndex = null;
+    let currentApplyType = null;   // 今書いている申請の種類
+
+    const names = { "出勤": "出勤", "退勤": "退勤", "外出": "外出", "戻り": "戻り" };
+
+    // === 申請の設計図（ここに定義を足せば申請種類を増やせる）===
+    // 各fieldは { key, label, type, required, placeholder }
+    const applyDefs = {
+      "残業申請": {
+        title: "残業申請",
+        fields: [
+          { key: "date", label: "対象日", type: "date", required: true },
+          { key: "hours", label: "見込み残業時間（時間）", type: "number", required: true, placeholder: "例: 2" },
+          { key: "reason", label: "理由", type: "textarea", required: true, placeholder: "例: リリース対応のため" },
+          { key: "note", label: "備考", type: "textarea", required: false, placeholder: "任意" },
+        ],
+      },
+      "休暇申請": {
+        title: "休暇申請（有給）",
+        fields: [
+          { key: "date", label: "取得開始日", type: "date", required: true },
+          { key: "days", label: "日数", type: "number", required: true, placeholder: "例: 1" },
+          { key: "reason", label: "理由", type: "textarea", required: true, placeholder: "例: 私用のため" },
+          { key: "note", label: "備考", type: "textarea", required: false, placeholder: "任意" },
+        ],
+      },
+      "休日出勤": {
+        title: "休日出勤申請",
+        fields: [
+          { key: "date", label: "出勤日", type: "date", required: true },
+          { key: "from", label: "出勤予定（開始）", type: "time", required: true },
+          { key: "to", label: "出勤予定（終了）", type: "time", required: true },
+          { key: "reason", label: "理由", type: "textarea", required: true, placeholder: "例: 障害対応のため" },
+          { key: "note", label: "備考", type: "textarea", required: false, placeholder: "任意" },
+        ],
+      },
+    };
+
+    function pad(n) { return String(n).padStart(2, "0"); }
+    function formatClock(date) { return pad(date.getHours()) + ":" + pad(date.getMinutes()) + ":" + pad(date.getSeconds()); }
+    function formatDate(date) { return date.getFullYear() + "/" + pad(date.getMonth() + 1) + "/" + pad(date.getDate()); }
+    function isoDate(date) { return date.getFullYear() + "-" + pad(date.getMonth() + 1) + "-" + pad(date.getDate()); }
+    function businessDay(date) {
+      const d = new Date(date);
+      if (!nightMode.checked && d.getHours() < 4) { d.setDate(d.getDate() - 1); }
+      return formatDate(d);
+    }
+    function displayName(type) { return names[type] || type; }
+    function addLog(item, text) {
+      const now = getNow();
+      item.log.push({ at: formatDate(now) + " " + formatClock(now), text: text });
+    }
+
+    function tickClock() {
+      const now = getNow();
+      clock.textContent = formatClock(now);
+      clockMode.textContent = (fakeTime !== null) ? ("⚙ 手動時刻: " + formatDate(now) + "（固定中）") : "";
+    }
+    setInterval(tickClock, 1000);
+    tickClock();
+
+    // ===== 申請フォームを開く =====
+    function openApplyForm(type) {
+      currentApplyType = type;
+      const def = applyDefs[type];
+      applyFormTitle.textContent = def.title;
+      applyFormSub.textContent = "必要事項を入力してください（理由は必須）";
+      formError.textContent = "";
+
+      // 定義を読んで入力欄を組み立てる
+      formFields.innerHTML = "";
+      for (const field of def.fields) {
+        const row = document.createElement("div");
+        row.className = "formRow";
+        const label = document.createElement("label");
+        label.textContent = field.label;
+        if (field.required) {
+          const req = document.createElement("span");
+          req.className = "req"; req.textContent = "必須";
+          label.appendChild(req);
+        }
+        row.appendChild(label);
+
+        let input;
+        if (field.type === "textarea") {
+          input = document.createElement("textarea");
+        } else {
+          input = document.createElement("input");
+          input.type = field.type;
+        }
+        if (field.placeholder) input.placeholder = field.placeholder;
+        input.id = "field_" + field.key;
+        // 日付欄は今日を初期値に
+        if (field.type === "date") input.value = isoDate(getNow());
+        row.appendChild(input);
+        formFields.appendChild(row);
+      }
+
+      // ホームを隠して申請画面へ
+      homeView.classList.add("hide");
+      applyView.classList.add("show");
+    }
+
+    function closeApplyForm() {
+      applyView.classList.remove("show");
+      homeView.classList.remove("hide");
+      currentApplyType = null;
+    }
+
+    // 申請を確定
+    function submitApply() {
+      const def = applyDefs[currentApplyType];
+      const values = {};
+      // 入力を集める＋必須チェック
+      for (const field of def.fields) {
+        const el = document.getElementById("field_" + field.key);
+        const v = el.value.trim();
+        if (field.required && v === "") {
+          formError.textContent = "「" + field.label + "」は必須です。";
+          return;
+        }
+        values[field.key] = v;
+      }
+      // 申請を記録
+      const now = getNow();
+      applications.push({
+        type: currentApplyType,
+        def: def,
+        values: values,
+        submittedAt: formatDate(now) + " " + formatClock(now),
+        canceled: false,
+      });
+      renderApplications();
+      closeApplyForm();
+    }
+
+    // 申請履歴を描く
+    function renderApplications() {
+      if (applications.length === 0) {
+        appRecords.innerHTML = '<div class="empty">まだ申請がありません</div>';
+        return;
+      }
+      appRecords.innerHTML = "";
+      for (let i = 0; i < applications.length; i++) {
+        const app = applications[i];
+        const box = document.createElement("div");
+        box.className = "appRecord" + (app.canceled ? " canceled" : "");
+
+        const head = document.createElement("div");
+        head.className = "appHead";
+        const typeSpan = document.createElement("span");
+        typeSpan.className = "appType";
+        typeSpan.textContent = app.def.title;
+        head.appendChild(typeSpan);
+
+        const right = document.createElement("div");
+        if (!app.canceled) {
+          const status = document.createElement("span");
+          status.className = "appStatus"; status.textContent = app.type + "中";
+          right.appendChild(status);
+        } else {
+          const status = document.createElement("span");
+          status.className = "appStatus"; status.style.background = "#e2e2e2"; status.style.color = "#888";
+          status.textContent = "取消済み";
+          right.appendChild(status);
+        }
+        head.appendChild(right);
+        box.appendChild(head);
+
+        // 中身（各欄を並べる）
+        const detail = document.createElement("div");
+        detail.className = "appDetail";
+        let lines = [];
+        for (const field of app.def.fields) {
+          const val = app.values[field.key];
+          if (val && val !== "") lines.push(field.label + "：" + val);
+        }
+        lines.push("申請日時：" + app.submittedAt);
+        detail.innerHTML = lines.join("<br>");
+        box.appendChild(detail);
+
+        // 取消／復元ボタン
+        const btnWrap = document.createElement("div");
+        btnWrap.style.marginTop = "8px";
+        const btn = document.createElement("button");
+        btn.className = "appCancel";
+        btn.textContent = app.canceled ? "復元" : "申請を取り消す";
+        btn.addEventListener("click", function () {
+          app.canceled = !app.canceled;
+          renderApplications();
+        });
+        btnWrap.appendChild(btn);
+        box.appendChild(btnWrap);
+
+        appRecords.appendChild(box);
+      }
+    }
+
+    function makeRow(item, index) {
+      let cls = "record";
+      if (item.pending) cls += " pending";
+      if (item.canceled) cls += " canceled";
+      const row = document.createElement("div");
+      row.className = cls;
+      const label = document.createElement("span");
+      label.className = "label"; label.textContent = displayName(item.type);
+      row.appendChild(label);
+      if (item.pending && !item.canceled) { const t = document.createElement("span"); t.className = "pendingTag"; t.textContent = "申請中"; row.appendChild(t); }
+      if (item.edited && !item.canceled) { const t = document.createElement("span"); t.className = "editedTag"; t.textContent = "修正済み"; row.appendChild(t); }
+      if (item.canceled) { const t = document.createElement("span"); t.className = "canceledTag"; t.textContent = "取消済み"; row.appendChild(t); }
+      const time = document.createElement("span");
+      time.className = "time"; time.textContent = item.time; row.appendChild(time);
+      if (fixMode && !item.canceled) {
+        const editBtn = document.createElement("button");
+        editBtn.className = "rowBtn edit"; editBtn.textContent = "編集";
+        editBtn.addEventListener("click", function () { openEdit(index); });
+        row.appendChild(editBtn);
+      }
+      if (item.pending && !item.canceled) {
+        const confirmBtn = document.createElement("button");
+        confirmBtn.className = "rowBtn confirm"; confirmBtn.textContent = "確定";
+        confirmBtn.addEventListener("click", function () { item.pending = false; addLog(item, "申請を確定"); renderHistory(); });
+        row.appendChild(confirmBtn);
+      }
+      if (!item.canceled) {
+        const removeBtn = document.createElement("button");
+        removeBtn.className = "rowBtn remove"; removeBtn.textContent = "取消";
+        removeBtn.addEventListener("click", function () { item.canceled = true; addLog(item, "取消"); renderHistory(); });
+        row.appendChild(removeBtn);
+      } else {
+        const restoreBtn = document.createElement("button");
+        restoreBtn.className = "rowBtn restore"; restoreBtn.textContent = "復元";
+        restoreBtn.addEventListener("click", function () { item.canceled = false; addLog(item, "復元"); renderHistory(); });
+        row.appendChild(restoreBtn);
+        if (devMode) {
+          const delBtn = document.createElement("button");
+          delBtn.className = "rowBtn delete"; delBtn.textContent = "完全削除";
+          delBtn.addEventListener("click", function () { openDelete(index); });
+          row.appendChild(delBtn);
+        }
+      }
+      return row;
+    }
+
+    function makeAuditItem(item, deleted) {
+      const box = document.createElement("div");
+      box.className = "auditItem" + (deleted ? " deleted" : "");
+      const head = document.createElement("div");
+      head.className = "auditHead";
+      head.innerHTML = displayName(item.type) + " " + item.time +
+        '<span class="dim">' + item.day + (deleted ? " ・完全削除済み" : "") + '</span>';
+      box.appendChild(head);
+      const ul = document.createElement("ul");
+      ul.className = "auditLog";
+      for (const entry of item.log) {
+        const li = document.createElement("li");
+        li.innerHTML = '<span class="logTime">' + entry.at + '</span>' + entry.text;
+        ul.appendChild(li);
+      }
+      box.appendChild(ul);
+      return box;
+    }
+
+    function renderHistory() {
+      if (page === 2 && !devMode) { page = 1; }
+      if (page === 0) { histTitle.textContent = "本日の打刻"; pageBtn.textContent = "全履歴 ▶"; }
+      else if (page === 1) { histTitle.textContent = "全履歴"; pageBtn.textContent = devMode ? "完全履歴 ▶" : "◀ 本日"; }
+      else { histTitle.textContent = "完全履歴（監査ログ）"; pageBtn.textContent = "◀ 本日"; }
+      records.innerHTML = "";
+      if (page === 2) {
+        if (history.length === 0 && deletedLog.length === 0) { records.innerHTML = '<div class="empty">記録がありません</div>'; return; }
+        for (let i = 0; i < history.length; i++) { records.appendChild(makeAuditItem(history[i], false)); }
+        for (let i = 0; i < deletedLog.length; i++) { records.appendChild(makeAuditItem(deletedLog[i], true)); }
+        return;
+      }
+      if (history.length === 0) { records.innerHTML = '<div class="empty">まだ打刻がありません</div>'; return; }
+      if (page === 0) {
+        const today = businessDay(getNow());
+        let count = 0;
+        for (let i = 0; i < history.length; i++) { if (history[i].day === today) { records.appendChild(makeRow(history[i], i)); count++; } }
+        if (count === 0) { records.innerHTML = '<div class="empty">本日の打刻はまだありません</div>'; }
+      } else {
+        let lastDay = null;
+        for (let i = 0; i < history.length; i++) {
+          const item = history[i];
+          if (item.day !== lastDay) {
+            const heading = document.createElement("div");
+            heading.className = "dayHeading"; heading.textContent = item.day;
+            records.appendChild(heading); lastDay = item.day;
+          }
+          records.appendChild(makeRow(item, i));
+        }
+      }
+    }
+
+    function currentState() {
+      let last = null;
+      for (let i = history.length - 1; i >= 0; i--) { if (!history[i].canceled) { last = history[i].type; break; } }
+      if (last === null) return "未出勤";
+      if (last === "出勤") return "勤務中";
+      if (last === "戻り") return "勤務中";
+      if (last === "外出") return "外出中";
+      if (last === "退勤") return "退勤済み";
+      return "勤務中";
+    }
+
+    function checkConflict(type) {
+      const state = currentState();
+      const N = displayName;
+      if (type === "出勤") {
+        if (state === "勤務中" || state === "外出中")
+          return { message: "すでに" + N("出勤") + "済みのようです。もう一度" + N("出勤") + "を打つ必要はないかもしれません。", fillType: null };
+        return null;
+      }
+      if (type === "退勤") {
+        if (state === "未出勤")
+          return { message: "まだ" + N("出勤") + "の打刻がないようです。先に" + N("出勤") + "を打ち忘れていませんか？", fillType: "出勤", fillLabel: "先に「" + N("出勤") + "」を補ってから" + N("退勤") + "する" };
+        if (state === "外出中")
+          return { message: N("外出") + "中のまま" + N("退勤") + "しようとしています。先に「" + N("戻り") + "」を打ち忘れていませんか？", fillType: "戻り", fillLabel: "先に「" + N("戻り") + "」を補ってから" + N("退勤") + "する" };
+        if (state === "退勤済み")
+          return { message: "すでに" + N("退勤") + "済みのようです。", fillType: null };
+        return null;
+      }
+      if (type === "外出") {
+        if (state === "未出勤")
+          return { message: "まだ" + N("出勤") + "の打刻がないようです。先に" + N("出勤") + "を打ち忘れていませんか？", fillType: "出勤", fillLabel: "先に「" + N("出勤") + "」を補ってから" + N("外出") + "する" };
+        if (state === "外出中")
+          return { message: "すでに" + N("外出") + "中のようです。", fillType: null };
+        if (state === "退勤済み")
+          return { message: N("退勤") + "済みですが、" + N("外出") + "しますか？", fillType: null };
+        return null;
+      }
+      if (type === "戻り") {
+        if (state !== "外出中")
+          return { message: N("外出") + "の打刻がないようです。先に「" + N("外出") + "」を打ち忘れていませんか？", fillType: "外出", fillLabel: "先に「" + N("外出") + "」を補ってから" + N("戻り") + "する" };
+        return null;
+      }
+      return null;
+    }
+
+    function showArea(which) {
+      confirmArea.style.display = (which === "confirm") ? "block" : "none";
+      timeInputArea.classList.toggle("show", which === "time");
+      deleteArea.classList.toggle("show", which === "delete");
+    }
+
+    function makePunch(type, time, day, pendingFlag, editedFlag, firstLogText) {
+      const item = { type: type, time: time, pending: pendingFlag, day: day, canceled: false, edited: editedFlag, log: [] };
+      addLog(item, firstLogText);
+      return item;
+    }
+
+    function openConfirm(type) {
+      const now = getNow();
+      pending = { type: type, time: formatClock(now), day: businessDay(now) };
+      let prev = null;
+      for (let i = history.length - 1; i >= 0; i--) { if (!history[i].canceled) { prev = history[i]; break; } }
+      prevValue.textContent = prev ? (displayName(prev.type) + " " + prev.time) : "なし";
+      nowValue.textContent = displayName(pending.type) + " " + pending.time;
+      showArea("confirm");
+      overlay.classList.add("show");
+      const conflict = checkConflict(type);
+      if (conflict === null) { showNormalMode(); } else { showConflictMode(conflict); }
+    }
+
+    function showNormalMode() {
+      leadText.textContent = "この内容で打刻します";
+      nowCol.classList.remove("warn");
+      warnText.classList.remove("show");
+      confirmQuestion.style.display = "block";
+      normalButtons.classList.remove("hide");
+      fixButtons.classList.remove("show");
+      okBtn.disabled = true;
+      okBtn.textContent = "確定する（1.5秒後）";
+      lockTimer = setTimeout(function () { okBtn.disabled = false; okBtn.textContent = "確定する"; }, 1500);
+    }
+
+    function showConflictMode(conflict) {
+      leadText.textContent = "打刻の順番が普段と違うようです";
+      nowCol.classList.add("warn");
+      warnText.textContent = conflict.message;
+      warnText.classList.add("show");
+      confirmQuestion.style.display = "none";
+      normalButtons.classList.add("hide");
+      fixButtons.classList.add("show");
+      if (conflict.fillType) {
+        fixFillBtn.style.display = "block";
+        fixFillBtn.textContent = conflict.fillLabel;
+        fillType = conflict.fillType;
+      } else { fixFillBtn.style.display = "none"; fillType = null; }
+    }
+
+    function closeConfirm() {
+      overlay.classList.remove("show");
+      pending = null; fillType = null; editIndex = null; deleteIndex = null;
+      clearTimeout(lockTimer);
+    }
+
+    function confirmPunch() {
+      if (pending === null) return;
+      history.push(makePunch(pending.type, pending.time, pending.day, false, false, "作成（" + pending.time + "）"));
+      renderHistory(); closeConfirm();
+    }
+
+    function fixFill() {
+      if (pending === null || fillType === null) return;
+      editIndex = null;
+      showArea("time");
+      fillLeadText.textContent = "補う打刻の時刻を入力";
+      fillSubText.textContent = "「" + displayName(pending.type) + " " + pending.time + "」はそのまま記録します。先に補う「" + displayName(fillType) + "」の正しい時刻を入れてください。";
+      const now = getNow();
+      timeInput.value = pad(now.getHours()) + ":" + pad(now.getMinutes());
+    }
+
+    function fillBack() { if (editIndex !== null) { closeConfirm(); } else { showArea("confirm"); } }
+
+    function fillDone() {
+      if (!timeInput.value) return;
+      const newTime = timeInput.value + ":00";
+      if (editIndex !== null) {
+        const item = history[editIndex];
+        if (item.time !== newTime) {
+          const oldTime = item.time;
+          item.time = newTime; item.edited = true; item.pending = true;
+          addLog(item, "時刻を " + oldTime + " → " + newTime + " に修正（申請中）");
+        }
+        renderHistory(); closeConfirm(); return;
+      }
+      if (pending === null || fillType === null) return;
+      history.push(makePunch(fillType, newTime, pending.day, true, false, "補完として作成（" + newTime + "・申請中）"));
+      history.push(makePunch(pending.type, pending.time, pending.day, false, false, "作成（" + pending.time + "）"));
+      renderHistory(); closeConfirm();
+    }
+
+    function openEdit(index) {
+      editIndex = index; pending = null;
+      const item = history[index];
+      showArea("time");
+      overlay.classList.add("show");
+      fillLeadText.textContent = "打刻時刻の修正";
+      fillSubText.textContent = "「" + displayName(item.type) + "」の時刻を修正します。修正すると申請中になります。";
+      timeInput.value = item.time.slice(0, 5);
+    }
+
+    function openDelete(index) {
+      deleteIndex = index;
+      const item = history[index];
+      showArea("delete");
+      overlay.classList.add("show");
+      delSubText.textContent = "「" + displayName(item.type) + " " + item.time + "」を履歴から完全に消します。この操作は元に戻せません（完全履歴には記録が残ります）。";
+    }
+
+    function deleteConfirm() {
+      if (deleteIndex === null) return;
+      const item = history[deleteIndex];
+      addLog(item, "完全削除");
+      deletedLog.push(item);
+      history.splice(deleteIndex, 1);
+      renderHistory(); closeConfirm();
+    }
+
+    function fixCancel() { closeConfirm(); }
+    function fixForce() {
+      if (pending === null) return;
+      history.push(makePunch(pending.type, pending.time, pending.day, false, false, "作成（順番警告を無視・" + pending.time + "）"));
+      renderHistory(); closeConfirm();
+    }
+
+    const buttons = document.querySelectorAll(".punchBtn");
+    for (const btn of buttons) { btn.addEventListener("click", function () { openConfirm(btn.dataset.type); }); }
+    // 申請ボタン → フォームを開く
+    const applyBtns = document.querySelectorAll(".applyBtn");
+    for (const btn of applyBtns) { btn.addEventListener("click", function () { openApplyForm(btn.dataset.apply); }); }
+
+    okBtn.addEventListener("click", confirmPunch);
+    cancelBtn.addEventListener("click", closeConfirm);
+    fixFillBtn.addEventListener("click", fixFill);
+    fixCancelBtn.addEventListener("click", fixCancel);
+    fixForceBtn.addEventListener("click", fixForce);
+    fillBackBtn.addEventListener("click", fillBack);
+    fillDoneBtn.addEventListener("click", fillDone);
+    deleteBackBtn.addEventListener("click", closeConfirm);
+    deleteConfirmBtn.addEventListener("click", deleteConfirm);
+    formBackBtn.addEventListener("click", closeApplyForm);
+    formSubmitBtn.addEventListener("click", submitApply);
+
+    pageBtn.addEventListener("click", function () {
+      const maxPage = devMode ? 3 : 2;
+      page = (page + 1) % maxPage;
+      renderHistory();
+    });
+    fixModeBtn.addEventListener("click", function () {
+      fixMode = !fixMode;
+      fixModeBtn.classList.toggle("active", fixMode);
+      fixModeBtn.textContent = fixMode ? "修正を終える" : "打刻を修正";
+      renderHistory();
+    });
+
+    settingsBtn.addEventListener("click", function () {
+      nameIn.value = names["出勤"]; nameOut.value = names["退勤"];
+      nameLeave.value = names["外出"]; nameBack.value = names["戻り"];
+      showOvertime.checked = applyOvertime.style.display !== "none";
+      showHoliday.checked = applyHoliday.style.display !== "none";
+      showLeave.checked = applyLeave.style.display !== "none";
+      settingsPanel.classList.add("show");
+    });
+    function applySettings() {
+      names["出勤"] = nameIn.value.trim() || "出勤";
+      names["退勤"] = nameOut.value.trim() || "退勤";
+      names["外出"] = nameLeave.value.trim() || "外出";
+      names["戻り"] = nameBack.value.trim() || "戻り";
+      btnIn.textContent = names["出勤"]; btnOut.textContent = names["退勤"];
+      btnLeave.textContent = names["外出"]; btnBack.textContent = names["戻り"];
+      applyOvertime.style.display = showOvertime.checked ? "block" : "none";
+      applyHoliday.style.display = showHoliday.checked ? "block" : "none";
+      applyLeave.style.display = showLeave.checked ? "block" : "none";
+      renderHistory();
+    }
+    settingsClose.addEventListener("click", function () { applySettings(); settingsPanel.classList.remove("show"); });
+
+    function refreshDevUI() {
+      devBadge.classList.toggle("show", devMode);
+      devOffBtn.classList.toggle("show", devMode);
+    }
+    devBadge.addEventListener("click", function () { devPanel.classList.add("show"); });
+    devOffBtn.addEventListener("click", function () {
+      devMode = false; devEnable.checked = false;
+      if (page === 2) { page = 1; }
+      refreshDevUI(); renderHistory();
+    });
+
+    let titleClicks = 0;
+    let titleClickTimer = null;
+    appTitle.addEventListener("click", function () {
+      titleClicks++;
+      clearTimeout(titleClickTimer);
+      titleClickTimer = setTimeout(function () { titleClicks = 0; }, 1500);
+      if (titleClicks >= 5) {
+        titleClicks = 0;
+        devPanel.classList.add("show");
+        const now = getNow();
+        fakeTimeInput.value = now.getFullYear() + "-" + pad(now.getMonth() + 1) + "-" + pad(now.getDate()) +
+          "T" + pad(now.getHours()) + ":" + pad(now.getMinutes()) + ":" + pad(now.getSeconds());
+      }
+    });
+
+    devEnable.addEventListener("change", function () {
+      devMode = devEnable.checked;
+      if (!devMode && page === 2) { page = 1; }
+      refreshDevUI(); renderHistory();
+    });
+    devCloseBtn.addEventListener("click", function () { devPanel.classList.remove("show"); });
+    useFakeTime.addEventListener("change", function () { if (!useFakeTime.checked) { fakeTime = null; tickClock(); } });
+    applyFakeBtn.addEventListener("click", function () {
+      if (!useFakeTime.checked) { alert("先に「時刻を手動指定する」にチェックを入れてください"); return; }
+      if (!fakeTimeInput.value) return;
+      fakeTime = new Date(fakeTimeInput.value);
+      tickClock(); renderHistory();
+    });
+    nightMode.addEventListener("change", function () { renderHistory(); });
+
+    // ===== 認証処理 =====
+    function showLoginView() {
+      loginView.classList.add("show");
+      homeView.classList.add("hide");
+      userInfo.classList.add("hidden");
+      logoutBtn.classList.add("hidden");
+    }
+
+    function showHomeView() {
+      loginView.classList.remove("show");
+      homeView.classList.remove("hide");
+      userInfo.classList.remove("hidden");
+      logoutBtn.classList.remove("hidden");
+    }
+
+    function updateUserUI(user) {
+      if (user) {
+        const displayName = user.displayName || user.email || "ユーザー";
+        userDisplayName.textContent = displayName;
+        const initial = displayName.charAt(0).toUpperCase();
+        userAvatar.textContent = initial;
+        showHomeView();
+      } else {
+        showLoginView();
+      }
+    }
+
+    // Googleでログイン
+    function loginWithGoogle() {
+      if (!auth) {
+        alert("Firebaseが設定されていません。Firebaseプロジェクト情報を設定してください。");
+        return;
+      }
+      const provider = new firebase.auth.GoogleAuthProvider();
+      auth.signInWithPopup(provider)
+        .then((result) => {
+          currentUser = result.user;
+          updateUserUI(currentUser);
+        })
+        .catch((error) => {
+          console.error("ログインエラー:", error);
+          alert("ログインに失敗しました: " + error.message);
+        });
+    }
+
+    // ログアウト
+    function logout() {
+      if (!auth) return;
+      auth.signOut()
+        .then(() => {
+          currentUser = null;
+          updateUserUI(null);
+          history.length = 0;
+          applications.length = 0;
+          renderHistory();
+          renderApplications();
+        })
+        .catch((error) => {
+          console.error("ログアウトエラー:", error);
+        });
+    }
+
+    // 認証状態の変化を監視
+    if (isFirebaseConfigured) {
+      auth.onAuthStateChanged((user) => {
+        currentUser = user;
+        updateUserUI(user);
+      });
+    } else {
+      // Firebase未設定の場合、デモモードで動作
+      showHomeView();
+    }
+
+    // イベントリスナー
+    googleLoginBtn.addEventListener("click", loginWithGoogle);
+    logoutBtn.addEventListener("click", logout);
+  </script>
+</body>
+</html>
