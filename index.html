@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <title>打刻アプリ</title>
-  <!-- Firebase SDK -->
-  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-auth.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js"></script>
+  <!-- Firebase SDK (compat版) -->
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore-compat.js"></script>
   <style>
     body { margin: 0; min-height: 100vh; background: #f5f5f5; font-family: sans-serif; color: #333; }
     #topBar { display: flex; align-items: center; gap: 10px; padding: 12px 16px 0; background: white; border-bottom: 1px solid #eee; }
@@ -22,8 +22,15 @@
     #devOffBtn.show { display: inline-block; }
     #settingsBtn { border: none; background: #e6e6e6; color: #444; border-radius: 6px; padding: 6px 12px; font-size: 13px; cursor: pointer; }
 
+    /* ステータス表示 */
+    #statusBar { text-align: center; padding: 8px 16px; background: #f0f0f0; border-bottom: 1px solid #ddd; font-size: 14px; }
+    #statusBar.working { background: #e8f5e9; color: #2e7d32; font-weight: bold; }
+    #statusBar.away { background: #fff3e0; color: #e65100; font-weight: bold; }
+    #statusBar.done { background: #f3e5f5; color: #6a1b9a; font-weight: bold; }
+    #statusBar.notStarted { background: #fce4ec; color: #880e4f; font-weight: bold; }
+
     /* ログイン画面 */
-    #loginView { display: none; position: fixed; inset: 0; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center; z-index: 200; }
+    #loginView { position: fixed; inset: 0; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: none; align-items: center; justify-content: center; z-index: 200; }
     #loginView.show { display: flex; }
     #loginBox { background: white; border-radius: 14px; padding: 40px; width: 360px; max-width: 90%; box-shadow: 0 8px 30px rgba(0,0,0,0.25); text-align: center; }
     #loginBox h1 { margin: 0 0 8px; font-size: 28px; color: #333; }
@@ -32,7 +39,7 @@
     #googleLoginBtn:hover { background: #f8f8f8; }
     .google-icon { width: 20px; height: 20px; }
 
-    #titleRow { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 6px 16px 0; flex-wrap: wrap; }
+    #titleRow { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 6px 16px 0; flex-wrap: wrap; position: relative; z-index: 1; }
     #titleRow h1 { font-size: 24px; margin: 0; user-select: none; }
 
     #clock { text-align: center; font-size: 48px; font-weight: bold; margin: 10px 0 6px; }
@@ -41,8 +48,8 @@
     /* ホーム画面のまとまり（申請画面のとき隠す） */
     #homeView.hide { display: none; }
 
-    #buttons { display: flex; flex-wrap: wrap; justify-content: center; gap: 16px; margin-bottom: 16px; }
-    .punchBtn { width: 130px; height: 90px; font-size: 20px; color: white; border: none; border-radius: 10px; cursor: pointer; }
+    #buttons { display: flex; flex-wrap: wrap; justify-content: center; gap: 16px; margin-bottom: 16px; position: relative; z-index: 2; }
+    .punchBtn { width: 130px; height: 90px; font-size: 20px; color: white; border: none; border-radius: 10px; cursor: pointer; position: relative; }
     .punchBtn.in { background: #2e9e5b; }
     .punchBtn.out { background: #c0392b; }
     .punchBtn.leave { background: #4a3f8f; }
@@ -97,6 +104,8 @@
     .appRecord .appCancel { border: none; border-radius: 6px; padding: 5px 10px; font-size: 12px; cursor: pointer; background: #e0e0e0; color: #555; }
     .appRecord.canceled { background: #f4f4f4; color: #aaa; }
     .appRecord.canceled .appType { text-decoration: line-through; }
+    .appRecord.rejected { background: #ffebee; }
+    .appRecord.rejected .appType { color: #c62828; }
 
     /* 申請フォーム画面 */
     #applyView { display: none; max-width: 520px; margin: 0 auto 40px; background: white; border-radius: 10px; padding: 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
@@ -113,7 +122,7 @@
     .formBackBtn { flex: 1; padding: 12px; font-size: 15px; border: none; border-radius: 8px; background: #e0e0e0; color: #444; cursor: pointer; }
     .formSubmitBtn { flex: 1; padding: 12px; font-size: 15px; border: none; border-radius: 8px; background: #2e9e5b; color: white; cursor: pointer; }
 
-    #overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: none; align-items: center; justify-content: center; }
+    #overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: none; align-items: center; justify-content: center; z-index: 50; }
     #overlay.show { display: flex; }
     #dialog { background: white; border-radius: 14px; padding: 28px 24px; width: 360px; max-width: 90%; box-shadow: 0 8px 30px rgba(0,0,0,0.25); text-align: center; }
     #dialog .lead { font-size: 15px; color: #666; margin-bottom: 16px; }
@@ -164,7 +173,7 @@
     .toggleRow { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 14px; }
     #settingsClose { width: 100%; padding: 12px; font-size: 15px; border: none; border-radius: 8px; background: #2e9e5b; color: white; cursor: pointer; margin-top: 6px; }
 
-    #devPanel { display: none; position: fixed; top: 0; left: 0; right: 0; background: #2b2b2b; color: #eee; padding: 14px 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.4); font-size: 14px; z-index: 100; }
+    #devPanel { display: none; position: fixed; top: 0; left: 0; width: 350px; height: 100vh; background: #2b2b2b; color: #eee; padding: 14px 20px; box-shadow: 2px 0 10px rgba(0,0,0,0.4); font-size: 14px; z-index: 100; overflow-y: auto; }
     #devPanel.show { display: block; }
     #devPanel .devTitle { font-weight: bold; margin-bottom: 10px; color: #ffca6b; }
     #devPanel .devRow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
@@ -176,9 +185,9 @@
 <body>
   <div id="devPanel">
     <div class="devTitle">開発者モード</div>
-    <div class="devRow"><label><input type="checkbox" id="devEnable"> 開発者モードON（完全削除・完全履歴を解禁）</label></div>
-    <div class="devRow"><label><input type="checkbox" id="useFakeTime"> 時刻を手動指定する（固定）</label></div>
-    <div class="devRow"><input type="datetime-local" id="fakeTimeInput" step="1"><button class="devBtn" id="applyFakeBtn">この時刻に固定</button></div>
+    <div class="devRow"><label><input type="checkbox" id="devEnable"> 完全削除・完全履歴・承認・却下</label></div>
+    <div class="devRow"><label><input type="checkbox" id="useFakeTime"> この時刻に固定</label><input type="datetime-local" id="fakeTimeInput" step="1"></div>
+    <div class="devRow"><label><input type="checkbox" id="restartFakeTime"> リスタート（固定した時間から進める）</label></div>
     <div class="devRow"><label><input type="checkbox" id="nightMode"> 夜勤モード（朝4時の自動区切りをしない）</label></div>
     <div class="devRow"><button class="devBtn devClose" id="devCloseBtn">閉じる</button></div>
   </div>
@@ -187,11 +196,12 @@
   <div id="loginView">
     <div id="loginBox">
       <h1>打刻アプリ</h1>
-      <p class="subtitle">Googleアカウントでログイン</p>
+      <p class="subtitle" id="loginSubtitle">Googleアカウントでログイン</p>
       <button id="googleLoginBtn">
         <svg class="google-icon" viewBox="0 0 24 24"><path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
-        Googleでログイン
+        <span id="loginBtnText">Googleでログイン</span>
       </button>
+      <p style="font-size: 12px; color: #999; margin-top: 16px; text-align: center;" id="demoNotice"></p>
     </div>
   </div>
 
@@ -201,8 +211,17 @@
       <div id="userDisplayName">ユーザー名</div>
     </div>
     <span class="spacer"></span>
+    <button id="reportBtnTop" style="border: none; background: #f0e2c8; color: #7a5a10; border-radius: 6px; padding: 6px 12px; font-size: 13px; cursor: pointer; margin-right: 8px;">レポート</button>
     <button id="settingsBtn">設定</button>
     <button id="logoutBtn" class="hidden">ログアウト</button>
+  </div>
+
+  <!-- ステータスバー -->
+  <div id="statusBar" class="notStarted">
+    まだ打刻がありません
+  </div>
+  <div style="text-align: center; font-size: 13px; color: #666; padding: 4px 0;">
+    本日の勤務時間：<span id="todayWorkingHours" style="font-weight: bold; color: #333;">-</span>
   </div>
 
   <div id="titleRow">
@@ -256,6 +275,34 @@
     </div>
   </div>
 
+  <!-- レポート画面 -->
+  <div id="reportView">
+    <h2 style="text-align: center; margin-top: 0;">レポート</h2>
+
+    <!-- レポートタイプ選択 -->
+    <div style="text-align: center; margin: 12px 0; display: flex; justify-content: center; gap: 8px; flex-wrap: wrap;">
+      <button class="reportTypeBtn active" data-type="working" style="padding: 8px 14px; background: #4a3f8f; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px;">勤務時間</button>
+      <button class="reportTypeBtn" data-type="overtime" style="padding: 8px 14px; background: #e0e0e0; color: #333; border: none; border-radius: 6px; cursor: pointer; font-size: 13px;">残業</button>
+      <button class="reportTypeBtn" data-type="paid_leave" style="padding: 8px 14px; background: #e0e0e0; color: #333; border: none; border-radius: 6px; cursor: pointer; font-size: 13px;">有給</button>
+      <button class="reportTypeBtn" data-type="holiday_work" style="padding: 8px 14px; background: #e0e0e0; color: #333; border: none; border-radius: 6px; cursor: pointer; font-size: 13px;">休日出勤</button>
+    </div>
+
+    <div style="text-align: center; margin: 16px; padding: 16px; background: white; border-radius: 10px;">
+      <div style="margin-bottom: 12px;">
+        <label style="display: block; margin-bottom: 8px; font-size: 13px; color: #666;">対象月：</label>
+        <input type="month" id="reportMonth" style="padding: 8px; font-size: 14px; border: 1px solid #ddd; border-radius: 6px; width: 180px;">
+      </div>
+      <button id="reportBtn" style="padding: 10px 20px; background: #4a3f8f; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px;">レポート表示</button>
+    </div>
+    <div id="reportTable" style="max-width: 520px; margin: 16px auto; background: white; border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); padding: 16px; min-height: 200px;">
+      <div style="text-align: center; color: #999;">レポートを表示するには「レポート表示」をクリックしてください</div>
+    </div>
+    <div style="text-align: center; margin: 16px 0 30px;">
+      <button id="exportCsvBtn" style="padding: 10px 20px; background: #2e9e5b; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; margin-right: 8px;">CSV ダウンロード</button>
+      <button id="reportBackBtn" style="padding: 10px 20px; background: #e0e0e0; color: #333; border: none; border-radius: 6px; cursor: pointer; font-size: 14px;">戻る</button>
+    </div>
+  </div>
+
   <!-- 設定パネル -->
   <div id="settingsPanel">
     <div id="settingsBox">
@@ -289,7 +336,7 @@
         <div id="confirmQuestion">この打刻でよろしいですか？</div>
         <div class="dialogButtons" id="normalButtons">
           <button class="cancelBtn" id="cancelBtn">キャンセル</button>
-          <button class="okBtn" id="okBtn">確定する</button>
+          <button class="okBtn" id="okBtn">承認する</button>
         </div>
         <div id="fixButtons">
           <button class="fixBtn primary"   id="fixFillBtn">先に不足分を補う</button>
@@ -319,14 +366,14 @@
 
   <script>
     // ===== Firebase初期化 =====
-    // 注意: 以下のFirebaseプロジェクト設定を自分のプロジェクトに置き換えてください
     const firebaseConfig = {
-      apiKey: "YOUR_API_KEY",
-      authDomain: "YOUR_AUTH_DOMAIN",
-      projectId: "YOUR_PROJECT_ID",
-      storageBucket: "YOUR_STORAGE_BUCKET",
-      messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-      appId: "YOUR_APP_ID"
+      apiKey: "AIzaSyDUdGO1BFx_1gRkZoVHKbEjo1g0H1C5MKE",
+      authDomain: "summer009-e256e.firebaseapp.com",
+      projectId: "summer009-e256e",
+      storageBucket: "summer009-e256e.firebasestorage.app",
+      messagingSenderId: "654646625729",
+      appId: "1:654646625729:web:3ef4b521566e3c39f31b40",
+      measurementId: "G-Y1JPJTYB93"
     };
 
     // Firebase初期化（configが設定されている場合のみ）
@@ -334,20 +381,33 @@
     let currentUser = null;
     const isFirebaseConfigured = firebaseConfig.apiKey && firebaseConfig.apiKey !== "YOUR_API_KEY";
 
+    let db = null;
     if (isFirebaseConfigured) {
       firebase.initializeApp(firebaseConfig);
       auth = firebase.auth();
-      const db = firebase.firestore();
+      db = firebase.firestore();
     }
 
     // ===== UI要素の取得 =====
     const loginView = document.getElementById("loginView");
+    const loginSubtitle = document.getElementById("loginSubtitle");
+    const loginBtnText = document.getElementById("loginBtnText");
+    const demoNotice = document.getElementById("demoNotice");
     const googleLoginBtn = document.getElementById("googleLoginBtn");
     const userInfo = document.getElementById("userInfo");
     const userDisplayName = document.getElementById("userDisplayName");
     const userAvatar = document.getElementById("userAvatar");
     const logoutBtn = document.getElementById("logoutBtn");
     const homeView = document.getElementById("homeView");
+
+    // Firebase設定の有無に応じてログイン画面を更新
+    if (!isFirebaseConfigured) {
+      loginSubtitle.textContent = "デモモードで使用開始";
+      loginBtnText.textContent = "デモとして使用開始";
+      demoNotice.textContent = "Firebaseが設定されていません。ローカルデータで動作します。\n本データ保存が必要な場合は FIREBASE_SETUP.md を参照してください。";
+    } else {
+      demoNotice.textContent = "本番モード：Firebaseと連携しています";
+    }
 
     const clock = document.getElementById("clock");
     const clockMode = document.getElementById("clockMode");
@@ -361,6 +421,7 @@
     const devOffBtn = document.getElementById("devOffBtn");
     const settingsBtn = document.getElementById("settingsBtn");
 
+    const statusBar = document.getElementById("statusBar");
     const applyView = document.getElementById("applyView");
     const applyFormTitle = document.getElementById("applyFormTitle");
     const applyFormSub = document.getElementById("applyFormSub");
@@ -417,27 +478,96 @@
     const devEnable = document.getElementById("devEnable");
     const useFakeTime = document.getElementById("useFakeTime");
     const fakeTimeInput = document.getElementById("fakeTimeInput");
-    const applyFakeBtn = document.getElementById("applyFakeBtn");
+    const restartFakeTime = document.getElementById("restartFakeTime");
     const devCloseBtn = document.getElementById("devCloseBtn");
     const nightMode = document.getElementById("nightMode");
 
-    let fakeTime = null;
+    // 時刻管理：3つのモードのいずれかに限定
+    const TimeMode = {
+      REAL: "real",           // リアルタイム
+      FIXED: "fixed",         // 時刻固定
+      ADVANCING: "advancing"  // 固定時刻から時間進行
+    };
+
+    let timeMode = TimeMode.REAL;
+    let fixedTime = null;      // FIXED/ADVANCING時の基準時刻
+    let timeOffset = 0;        // ADVANCING時のリアルとの差分（ミリ秒）
     let devMode = false;
-    function getNow() { return (fakeTime !== null) ? new Date(fakeTime) : new Date(); }
+    let firestoreUnsubscribe = null;
+
+    function getNow() {
+      switch (timeMode) {
+        case TimeMode.REAL:
+          return new Date();
+        case TimeMode.FIXED:
+          return new Date(fixedTime);
+        case TimeMode.ADVANCING:
+          return new Date(new Date().getTime() + timeOffset);
+        default:
+          return new Date();
+      }
+    }
 
     const history = [];
     const deletedLog = [];
     const applications = [];   // 申請の記録（勤怠とは別）
-    let pending = null;
     let lockTimer = null;
-    let fillType = null;
-    let page = 0;
-    let fixMode = false;
-    let editIndex = null;
-    let deleteIndex = null;
-    let currentApplyType = null;   // 今書いている申請の種類
+
+    // ===== UI状態管理（統一化） =====
+    const UIState = {
+      HOME: "home",                // ホーム画面
+      PUNCH_CONFIRM: "punch_confirm",     // 打刻確認ダイアログ
+      PUNCH_EDIT: "punch_edit",           // 打刻編集ダイアログ
+      PUNCH_DELETE: "punch_delete",       // 削除確認ダイアログ
+      APPLY_FORM: "apply_form",          // 申請フォーム
+      SETTINGS: "settings",              // 設定パネル
+      LOGIN: "login"                     // ログイン画面
+    };
+
+    let currentUIState = UIState.HOME;
+
+    // UI関連データ（状態が確定した際の補助データ）
+    const uiData = {
+      pendingPunch: null,     // 打刻確認中のデータ（PUNCH_CONFIRM時）
+      fillType: null,         // 補完種別（PUNCH_CONFIRM時）
+      editingIndex: null,     // 編集中のインデックス（PUNCH_EDIT時）
+      deletingIndex: null,    // 削除中のインデックス（PUNCH_DELETE時）
+      applyingType: null,     // 申請種別（APPLY_FORM時）
+      currentPage: 0,         // 表示ページ（HOME時、0=本日, 1=全履歴, 2=完全履歴）
+      fixMode: false          // 修正モード（HOME時）
+    };
 
     const names = { "出勤": "出勤", "退勤": "退勤", "外出": "外出", "戻り": "戻り" };
+
+    // 互換性のための getter（古いコードとの移行用）
+    Object.defineProperty(window, 'pending', {
+      get: () => (currentUIState === UIState.PUNCH_CONFIRM) ? uiData.pendingPunch : null,
+      set: (v) => { if (v) { currentUIState = UIState.PUNCH_CONFIRM; uiData.pendingPunch = v; } else { currentUIState = UIState.HOME; uiData.pendingPunch = null; } }
+    });
+    Object.defineProperty(window, 'editIndex', {
+      get: () => (currentUIState === UIState.PUNCH_EDIT) ? uiData.editingIndex : null,
+      set: (v) => { if (v !== null) { currentUIState = UIState.PUNCH_EDIT; uiData.editingIndex = v; } else { currentUIState = UIState.HOME; uiData.editingIndex = null; } }
+    });
+    Object.defineProperty(window, 'deleteIndex', {
+      get: () => (currentUIState === UIState.PUNCH_DELETE) ? uiData.deletingIndex : null,
+      set: (v) => { if (v !== null) { currentUIState = UIState.PUNCH_DELETE; uiData.deletingIndex = v; } else { currentUIState = UIState.HOME; uiData.deletingIndex = null; } }
+    });
+    Object.defineProperty(window, 'currentApplyType', {
+      get: () => (currentUIState === UIState.APPLY_FORM) ? uiData.applyingType : null,
+      set: (v) => { if (v) { currentUIState = UIState.APPLY_FORM; uiData.applyingType = v; } else { currentUIState = UIState.HOME; uiData.applyingType = null; } }
+    });
+    Object.defineProperty(window, 'page', {
+      get: () => uiData.currentPage,
+      set: (v) => { uiData.currentPage = v; }
+    });
+    Object.defineProperty(window, 'fixMode', {
+      get: () => uiData.fixMode,
+      set: (v) => { uiData.fixMode = v; }
+    });
+    Object.defineProperty(window, 'fillType', {
+      get: () => uiData.fillType,
+      set: (v) => { uiData.fillType = v; }
+    });
 
     // === 申請の設計図（ここに定義を足せば申請種類を増やせる）===
     // 各fieldは { key, label, type, required, placeholder }
@@ -472,6 +602,183 @@
       },
     };
 
+    // ===== UI状態に基づいた表示制御 =====
+    function updateUIForState() {
+      switch (currentUIState) {
+        case UIState.LOGIN:
+          loginView.classList.add("show");
+          homeView.classList.add("hide");
+          overlay.classList.remove("show");
+          break;
+
+        case UIState.HOME:
+          loginView.classList.remove("show");
+          homeView.classList.remove("hide");
+          overlay.classList.remove("show");
+          applyView.classList.remove("show");
+          settingsPanel.classList.remove("show");
+          break;
+
+        case UIState.PUNCH_CONFIRM:
+          overlay.classList.add("show");
+          showArea("confirm");
+          break;
+
+        case UIState.PUNCH_EDIT:
+          overlay.classList.add("show");
+          showArea("time");
+          break;
+
+        case UIState.PUNCH_DELETE:
+          overlay.classList.add("show");
+          showArea("delete");
+          break;
+
+        case UIState.APPLY_FORM:
+          homeView.classList.add("hide");
+          applyView.classList.add("show");
+          break;
+
+        case UIState.SETTINGS:
+          settingsPanel.classList.add("show");
+          break;
+      }
+    }
+
+    // ===== 状態遷移ヘルパー =====
+    function setUIState(newState, data = {}) {
+      currentUIState = newState;
+      Object.assign(uiData, data);
+      updateUIForState();
+    }
+
+    function closeUI() {
+      currentUIState = UIState.HOME;
+      uiData.pendingPunch = null;
+      uiData.fillType = null;
+      uiData.editingIndex = null;
+      uiData.deletingIndex = null;
+      uiData.applyingType = null;
+      updateUIForState();
+    }
+
+    // 申請承認確認ダイアログを開く
+    function openApproveConfirm(index, app) {
+      console.log("openApproveConfirm called with index:", index, "app:", app);
+      uiData.approvingIndex = index;
+      uiData.approvingApp = app;
+
+      confirmArea.innerHTML = `
+        <div class="lead">この申請を承認します</div>
+        <div class="compare">
+          <div class="col"><div class="caption">申請種別</div><div class="value">${app.def.title}</div></div>
+          <div class="col now"><div class="caption">申請状況</div><div class="value">${app.type}中</div></div>
+        </div>
+        <div style="font-size: 13px; color: #666; margin: 12px 0; line-height: 1.6;">
+          ${Object.entries(app.values).map(([key, val]) => {
+            const field = app.def.fields.find(f => f.key === key);
+            return field ? `<div>${field.label}：${val}</div>` : '';
+          }).join('')}
+          <div style="margin-top: 8px; color: #999;">申請日時：${app.submittedAt}</div>
+        </div>
+        <div id="confirmQuestion">この申請を承認してよろしいですか？</div>
+        <div class="dialogButtons" id="approveNormalButtons">
+          <button class="cancelBtn" id="approveCancelBtn">キャンセル</button>
+          <button class="okBtn" id="approveOkBtn">承認する</button>
+        </div>
+      `;
+
+      overlay.classList.add("show");
+
+      document.getElementById("approveCancelBtn").addEventListener("click", function() {
+        overlay.classList.remove("show");
+      });
+
+      document.getElementById("approveOkBtn").addEventListener("click", function() {
+        console.log("Approve confirmed for index:", index);
+        applications[index].approved = true;
+        renderApplications();
+        renderHistory();
+        overlay.classList.remove("show");
+      });
+    }
+
+    // 打刻取消確認ダイアログを開く
+    function openCancelConfirm(index, item) {
+      confirmArea.innerHTML = `
+        <div class="lead">この打刻を取消します</div>
+        <div class="compare">
+          <div class="col"><div class="caption">種別</div><div class="value">${item.type}</div></div>
+          <div class="col now"><div class="caption">時刻</div><div class="value">${item.time}</div></div>
+        </div>
+        <div style="font-size: 13px; color: #666; margin: 12px 0;">
+          <div>${item.day}</div>
+        </div>
+        <div id="confirmQuestion">この打刻を取消してよろしいですか？</div>
+        <div class="dialogButtons" id="cancelNormalButtons">
+          <button class="cancelBtn" id="cancelCancelBtn">キャンセル</button>
+          <button class="okBtn" id="cancelOkBtn">取消する</button>
+        </div>
+      `;
+
+      overlay.classList.add("show");
+
+      document.getElementById("cancelCancelBtn").addEventListener("click", function() {
+        overlay.classList.remove("show");
+      });
+
+      document.getElementById("cancelOkBtn").addEventListener("click", function() {
+        item.canceled = true;
+        addLog(item, "取消");
+        if (item.docId && isFirebaseConfigured && currentUser && db) {
+          db.collection("users").doc(currentUser.uid)
+            .collection("punches").doc(item.docId)
+            .update({ canceled: true })
+            .catch((error) => console.error("Firestore更新エラー:", error));
+        }
+        renderHistory();
+        overlay.classList.remove("show");
+      });
+    }
+
+    // 打刻記録の承認確認ダイアログを開く
+    function openPunchApproveConfirm(index, item) {
+      confirmArea.innerHTML = `
+        <div class="lead">この打刻を確定します</div>
+        <div class="compare">
+          <div class="col"><div class="caption">種別</div><div class="value">${item.type}</div></div>
+          <div class="col now"><div class="caption">時刻</div><div class="value">${item.time}</div></div>
+        </div>
+        <div style="font-size: 13px; color: #666; margin: 12px 0;">
+          <div>${item.day}</div>
+        </div>
+        <div id="confirmQuestion">この打刻を承認してよろしいですか？</div>
+        <div class="dialogButtons" id="punchApproveButtons">
+          <button class="cancelBtn" id="punchApproveCancelBtn">キャンセル</button>
+          <button class="okBtn" id="punchApproveOkBtn">承認する</button>
+        </div>
+      `;
+
+      overlay.classList.add("show");
+
+      document.getElementById("punchApproveCancelBtn").addEventListener("click", function() {
+        overlay.classList.remove("show");
+      });
+
+      document.getElementById("punchApproveOkBtn").addEventListener("click", function() {
+        item.pending = false;
+        addLog(item, "申請を確定");
+        if (item.docId && isFirebaseConfigured && currentUser && db) {
+          db.collection("users").doc(currentUser.uid)
+            .collection("punches").doc(item.docId)
+            .update({ pending: false })
+            .catch((error) => console.error("Firestore更新エラー:", error));
+        }
+        renderHistory();
+        overlay.classList.remove("show");
+      });
+    }
+
     function pad(n) { return String(n).padStart(2, "0"); }
     function formatClock(date) { return pad(date.getHours()) + ":" + pad(date.getMinutes()) + ":" + pad(date.getSeconds()); }
     function formatDate(date) { return date.getFullYear() + "/" + pad(date.getMonth() + 1) + "/" + pad(date.getDate()); }
@@ -490,10 +797,35 @@
     function tickClock() {
       const now = getNow();
       clock.textContent = formatClock(now);
-      clockMode.textContent = (fakeTime !== null) ? ("⚙ 手動時刻: " + formatDate(now) + "（固定中）") : "";
+      if (timeMode === TimeMode.FIXED) {
+        clockMode.textContent = "⚙ 手動時刻: " + formatDate(now) + "（固定中）";
+      } else if (timeMode === TimeMode.ADVANCING) {
+        clockMode.textContent = "⚙ 手動時刻: " + formatDate(now) + "（進行中）";
+      } else {
+        clockMode.textContent = "";
+      }
     }
     setInterval(tickClock, 1000);
     tickClock();
+
+    // ===== 日付変更時の自動更新（朝4時のリセット） =====
+    let lastBusinessDay = businessDay(getNow());
+    setInterval(function() {
+      const today = businessDay(getNow());
+      if (today !== lastBusinessDay) {
+        // 日付が変わった → HOME に戻してデータを再読み込み
+        lastBusinessDay = today;
+        page = 0;  // 本日ページに戻す
+        setUIState(UIState.HOME);  // ダイアログを全て閉じてHOME状態にする
+
+        // Firestoreからデータを再読み込み
+        if (isFirebaseConfigured && db && currentUser) {
+          loadAllPunchesFromFirestore();
+        } else {
+          renderHistory();  // Firebase未設定の場合はローカルで更新
+        }
+      }
+    }, 1000);
 
     // ===== 申請フォームを開く =====
     function openApplyForm(type) {
@@ -559,19 +891,30 @@
       }
       // 申請を記録
       const now = getNow();
+
+      // 日付形式を YYYY/MM/DD に統一
+      if (values.date) {
+        const [year, month, day] = values.date.split("-");
+        values.date = `${year}/${month}/${day}`;
+      }
+
       applications.push({
         type: currentApplyType,
         def: def,
         values: values,
         submittedAt: formatDate(now) + " " + formatClock(now),
         canceled: false,
+        rejected: false,
+        approved: false
       });
+      renderApplications();
       renderApplications();
       closeApplyForm();
     }
 
     // 申請履歴を描く
     function renderApplications() {
+      console.log("renderApplications called, devMode:", devMode);
       if (applications.length === 0) {
         appRecords.innerHTML = '<div class="empty">まだ申請がありません</div>';
         return;
@@ -579,8 +922,12 @@
       appRecords.innerHTML = "";
       for (let i = 0; i < applications.length; i++) {
         const app = applications[i];
+        console.log("app index:", i, "app:", app, "approved:", app.approved, "canceled:", app.canceled, "rejected:", app.rejected);
         const box = document.createElement("div");
-        box.className = "appRecord" + (app.canceled ? " canceled" : "");
+        let className = "appRecord";
+        if (app.canceled) className += " canceled";
+        if (app.rejected) className += " rejected";
+        box.className = className;
 
         const head = document.createElement("div");
         head.className = "appHead";
@@ -590,14 +937,24 @@
         head.appendChild(typeSpan);
 
         const right = document.createElement("div");
-        if (!app.canceled) {
+        if (app.approved) {
           const status = document.createElement("span");
-          status.className = "appStatus"; status.textContent = app.type + "中";
+          status.className = "appStatus"; status.style.background = "#4caf50"; status.style.color = "white";
+          status.textContent = "✓承認済";
           right.appendChild(status);
-        } else {
+        } else if (app.rejected) {
+          const status = document.createElement("span");
+          status.className = "appStatus"; status.style.background = "#ff6b6b"; status.style.color = "white";
+          status.textContent = "却下済み";
+          right.appendChild(status);
+        } else if (app.canceled) {
           const status = document.createElement("span");
           status.className = "appStatus"; status.style.background = "#e2e2e2"; status.style.color = "#888";
           status.textContent = "取消済み";
+          right.appendChild(status);
+        } else {
+          const status = document.createElement("span");
+          status.className = "appStatus"; status.textContent = app.type + "中";
           right.appendChild(status);
         }
         head.appendChild(right);
@@ -615,18 +972,142 @@
         detail.innerHTML = lines.join("<br>");
         box.appendChild(detail);
 
-        // 取消／復元ボタン
+        // ボタン
         const btnWrap = document.createElement("div");
         btnWrap.style.marginTop = "8px";
-        const btn = document.createElement("button");
-        btn.className = "appCancel";
-        btn.textContent = app.canceled ? "復元" : "申請を取り消す";
-        btn.addEventListener("click", function () {
-          app.canceled = !app.canceled;
-          renderApplications();
-        });
-        btnWrap.appendChild(btn);
-        box.appendChild(btnWrap);
+        btnWrap.style.display = "flex";
+        btnWrap.style.gap = "8px";
+
+        // 承認済みでない場合のみボタン表示
+        if (!app.approved) {
+          console.log("Button display check - devMode:", devMode, "canceled:", app.canceled, "rejected:", app.rejected);
+
+          // 開発者モード且つ却下済み：却下を取り消すボタン（最初にチェック）
+          if (devMode && app.rejected) {
+            console.log("Showing reject-cancel button for index:", i);
+            const rejectCancelBtn = document.createElement("button");
+            rejectCancelBtn.className = "rowBtn restore";
+            rejectCancelBtn.textContent = "却下を取り消す";
+            rejectCancelBtn.addEventListener("click", (function(idx) {
+              return function() {
+                console.log("Reject-cancel clicked for index:", idx);
+                applications[idx].rejected = false;
+                renderApplications();
+                renderHistory();
+              };
+            })(i));
+            btnWrap.appendChild(rejectCancelBtn);
+          }
+          // 開発者モード且つ取消済み：復元ボタン
+          else if (devMode && app.canceled) {
+            console.log("Showing restore button for index:", i);
+            const restoreBtn = document.createElement("button");
+            restoreBtn.className = "rowBtn restore";
+            restoreBtn.textContent = "復元";
+            restoreBtn.addEventListener("click", (function(idx) {
+              return function() {
+                console.log("Restore clicked for index:", idx);
+                applications[idx].canceled = false;
+                renderApplications();
+                renderHistory();
+              };
+            })(i));
+            btnWrap.appendChild(restoreBtn);
+          }
+          // 開発者モード且つ申請中：取消 + 承認/却下ボタン
+          else if (devMode && !app.canceled) {
+            console.log("Showing approve/reject buttons for app index:", i);
+
+            const cancelBtn = document.createElement("button");
+            cancelBtn.textContent = "申請を取り消す";
+            cancelBtn.style.cssText = "padding: 6px 12px; background: #ccc; color: #333; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 13px;";
+            cancelBtn.addEventListener("click", (function(idx) {
+              return function() {
+                console.log("Cancel clicked for index:", idx);
+                applications[idx].canceled = true;
+                renderApplications();
+                renderHistory();
+              };
+            })(i));
+            btnWrap.appendChild(cancelBtn);
+
+            const approveBtn = document.createElement("button");
+            approveBtn.textContent = "承認";
+            approveBtn.style.cssText = "flex: 1; padding: 6px 12px; background: #4caf50; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 13px;";
+            approveBtn.addEventListener("click", (function(idx) {
+              return function() {
+                console.log("Approve clicked for index:", idx);
+                openApproveConfirm(idx, applications[idx]);
+              };
+            })(i));
+            btnWrap.appendChild(approveBtn);
+
+            const rejectBtn = document.createElement("button");
+            rejectBtn.textContent = "却下";
+            rejectBtn.style.cssText = "flex: 1; padding: 6px 12px; background: #f44336; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 13px;";
+            rejectBtn.addEventListener("click", (function(idx) {
+              return function() {
+                console.log("Reject clicked for index:", idx);
+                applications[idx].rejected = true;
+                renderApplications();
+                renderHistory();
+              };
+            })(i));
+            btnWrap.appendChild(rejectBtn);
+          }
+          // 開発者モード且つ取消済み：復元ボタン
+          else if (devMode && app.canceled && !app.rejected) {
+            console.log("Showing restore button for index:", i);
+            const restoreBtn = document.createElement("button");
+            restoreBtn.className = "rowBtn restore";
+            restoreBtn.textContent = "復元";
+            restoreBtn.addEventListener("click", (function(idx) {
+              return function() {
+                console.log("Restore clicked for index:", idx);
+                applications[idx].canceled = false;
+                renderApplications();
+                renderHistory();
+              };
+            })(i));
+            btnWrap.appendChild(restoreBtn);
+          }
+          // 開発者モード且つ却下済み：却下を取り消すボタン
+          else if (devMode && app.rejected) {
+            console.log("Showing reject-cancel button for index:", i);
+            const rejectCancelBtn = document.createElement("button");
+            rejectCancelBtn.className = "rowBtn restore";
+            rejectCancelBtn.textContent = "却下を取り消す";
+            rejectCancelBtn.addEventListener("click", (function(idx) {
+              return function() {
+                console.log("Reject-cancel clicked for index:", idx);
+                applications[idx].rejected = false;
+                renderApplications();
+                renderHistory();
+              };
+            })(i));
+            btnWrap.appendChild(rejectCancelBtn);
+          }
+          // 通常モード：取消/復元ボタン
+          else if (!devMode) {
+            console.log("Showing cancel/restore button (normal mode)");
+            const btn = document.createElement("button");
+            if (app.canceled) {
+              btn.className = "rowBtn restore";
+            } else {
+              btn.className = "appCancel";
+            }
+            btn.textContent = app.canceled ? "復元" : "申請を取り消す";
+            btn.addEventListener("click", function () {
+              app.canceled = !app.canceled;
+              renderApplications();
+            });
+            btnWrap.appendChild(btn);
+          }
+        }
+
+        if (btnWrap.hasChildNodes()) {
+          box.appendChild(btnWrap);
+        }
 
         appRecords.appendChild(box);
       }
@@ -642,6 +1123,7 @@
       label.className = "label"; label.textContent = displayName(item.type);
       row.appendChild(label);
       if (item.pending && !item.canceled) { const t = document.createElement("span"); t.className = "pendingTag"; t.textContent = "申請中"; row.appendChild(t); }
+      if (!item.pending && !item.canceled && devMode) { const t = document.createElement("span"); t.className = "approvedTag"; t.textContent = "✓承認済み"; t.style.cssText = "background: #4caf50; color: white; padding: 2px 6px; border-radius: 3px; font-size: 11px; margin-left: 4px;"; row.appendChild(t); }
       if (item.edited && !item.canceled) { const t = document.createElement("span"); t.className = "editedTag"; t.textContent = "修正済み"; row.appendChild(t); }
       if (item.canceled) { const t = document.createElement("span"); t.className = "canceledTag"; t.textContent = "取消済み"; row.appendChild(t); }
       const time = document.createElement("span");
@@ -652,21 +1134,33 @@
         editBtn.addEventListener("click", function () { openEdit(index); });
         row.appendChild(editBtn);
       }
-      if (item.pending && !item.canceled) {
+      if (devMode && item.pending && !item.canceled) {
         const confirmBtn = document.createElement("button");
-        confirmBtn.className = "rowBtn confirm"; confirmBtn.textContent = "確定";
-        confirmBtn.addEventListener("click", function () { item.pending = false; addLog(item, "申請を確定"); renderHistory(); });
+        confirmBtn.className = "rowBtn confirm"; confirmBtn.textContent = "承認";
+        confirmBtn.addEventListener("click", function () { openPunchApproveConfirm(index, item); });
         row.appendChild(confirmBtn);
       }
       if (!item.canceled) {
         const removeBtn = document.createElement("button");
         removeBtn.className = "rowBtn remove"; removeBtn.textContent = "取消";
-        removeBtn.addEventListener("click", function () { item.canceled = true; addLog(item, "取消"); renderHistory(); });
+        removeBtn.addEventListener("click", function () {
+          openCancelConfirm(index, item);
+        });
         row.appendChild(removeBtn);
       } else {
         const restoreBtn = document.createElement("button");
         restoreBtn.className = "rowBtn restore"; restoreBtn.textContent = "復元";
-        restoreBtn.addEventListener("click", function () { item.canceled = false; addLog(item, "復元"); renderHistory(); });
+        restoreBtn.addEventListener("click", function () {
+          item.canceled = false;
+          addLog(item, "復元");
+          if (item.docId && isFirebaseConfigured && currentUser && db) {
+            db.collection("users").doc(currentUser.uid)
+              .collection("punches").doc(item.docId)
+              .update({ canceled: false })
+              .catch((error) => console.error("Firestore更新エラー:", error));
+          }
+          renderHistory();
+        });
         row.appendChild(restoreBtn);
         if (devMode) {
           const delBtn = document.createElement("button");
@@ -697,41 +1191,159 @@
       return box;
     }
 
+    function makeApplicationItem(app, appIndex) {
+      const row = document.createElement("div");
+      row.className = "historyRow";
+      row.style.cssText = "display: flex; align-items: center; justify-content: space-between; padding: 10px; border: 1px solid #e0e0e0; border-radius: 4px; margin: 4px 0;";
+
+      const typeColors = { "残業申請": "#ff9800", "有給申請": "#2196f3", "休日出勤申請": "#4caf50" };
+      const color = typeColors[app.type] || "#666";
+      const statusText = app.approved ? "✓承認済" : (app.canceled ? "✕却下" : "申請中");
+      const statusColor = app.approved ? "green" : (app.canceled ? "red" : "#ff9800");
+
+      const content = Object.values(app.values).filter(v => v).join(" / ") || "-";
+
+      // 左側のコンテンツ
+      const leftDiv = document.createElement("div");
+      leftDiv.style.cssText = "flex: 1;";
+      leftDiv.innerHTML = `
+        <strong style="color: ${color};">${app.type}</strong> ${app.values.date}<br>
+        <span style="font-size: 12px; color: #666;">${content}</span><br>
+        <span style="font-size: 11px; color: #999;">${app.submittedAt}</span>
+      `;
+      row.appendChild(leftDiv);
+
+      // ステータス表示
+      const statusSpan = document.createElement("span");
+      statusSpan.style.cssText = `color: ${statusColor}; font-weight: bold; margin-right: 12px; min-width: 60px; text-align: right;`;
+      statusSpan.textContent = statusText;
+      row.appendChild(statusSpan);
+
+      // ボタン
+      if (!app.approved && !app.canceled) {
+        const approveBtn = document.createElement("button");
+        approveBtn.style.cssText = "padding: 4px 8px; margin: 0 2px; background: #4caf50; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;";
+        approveBtn.textContent = "承認";
+        approveBtn.addEventListener("click", function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          applications[appIndex].approved = true;
+          renderHistory();
+        });
+        row.appendChild(approveBtn);
+
+        const rejectBtn = document.createElement("button");
+        rejectBtn.style.cssText = "padding: 4px 8px; margin: 0 2px; background: #f44336; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;";
+        rejectBtn.textContent = "却下";
+        rejectBtn.addEventListener("click", function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          applications[appIndex].canceled = true;
+          renderHistory();
+        });
+        row.appendChild(rejectBtn);
+      }
+
+      return row;
+    }
+
+    function updateStatusBar() {
+      const state = currentState();
+      statusBar.textContent = state;
+      statusBar.className = "";
+
+      if (state === "勤務中") {
+        statusBar.classList.add("working");
+      } else if (state === "外出中") {
+        statusBar.classList.add("away");
+      } else if (state === "退勤済み") {
+        statusBar.classList.add("done");
+      } else {
+        statusBar.classList.add("notStarted");
+      }
+
+      // 本日の勤務時間を表示
+      const today = businessDay(getNow());
+      const workingHours = calculateDailyWorkingHours(today, history);
+      document.getElementById("todayWorkingHours").textContent = formatWorkingHours(workingHours);
+    }
+
     function renderHistory() {
       if (page === 2 && !devMode) { page = 1; }
+
+      // ビュー表示制御
+      homeView.classList.toggle("hide", page === 3);
+      document.getElementById("reportView").style.display = page === 3 ? "block" : "none";
+
+      // レポートボタンのテキスト変更
+      const reportBtnTop = document.getElementById("reportBtnTop");
+      if (page === 3) {
+        reportBtnTop.textContent = "ホームに戻る";
+        return;
+      } else {
+        reportBtnTop.textContent = "レポート";
+      }  // レポートページの場合はここで終了
+
       if (page === 0) { histTitle.textContent = "本日の打刻"; pageBtn.textContent = "全履歴 ▶"; }
       else if (page === 1) { histTitle.textContent = "全履歴"; pageBtn.textContent = devMode ? "完全履歴 ▶" : "◀ 本日"; }
       else { histTitle.textContent = "完全履歴（監査ログ）"; pageBtn.textContent = "◀ 本日"; }
       records.innerHTML = "";
       if (page === 2) {
         if (history.length === 0 && deletedLog.length === 0) { records.innerHTML = '<div class="empty">記録がありません</div>'; return; }
+
+        // 監査ログ
+        const auditHead = document.createElement("div");
+        auditHead.style.cssText = "font-weight: bold; padding: 12px 0 8px; border-top: 2px solid #ddd; margin-top: 12px;";
+        auditHead.textContent = "監査ログ";
+        records.appendChild(auditHead);
         for (let i = 0; i < history.length; i++) { records.appendChild(makeAuditItem(history[i], false)); }
         for (let i = 0; i < deletedLog.length; i++) { records.appendChild(makeAuditItem(deletedLog[i], true)); }
+
         return;
       }
-      if (history.length === 0) { records.innerHTML = '<div class="empty">まだ打刻がありません</div>'; return; }
+      if (history.length === 0) { records.innerHTML = '<div class="empty">まだ打刻がありません</div>'; updateStatusBar(); return; }
       if (page === 0) {
         const today = businessDay(getNow());
         let count = 0;
         for (let i = 0; i < history.length; i++) { if (history[i].day === today) { records.appendChild(makeRow(history[i], i)); count++; } }
         if (count === 0) { records.innerHTML = '<div class="empty">本日の打刻はまだありません</div>'; }
       } else {
+        // 全履歴は新しい順に表示（逆順ループ）
         let lastDay = null;
-        for (let i = 0; i < history.length; i++) {
+        for (let i = history.length - 1; i >= 0; i--) {
           const item = history[i];
           if (item.day !== lastDay) {
             const heading = document.createElement("div");
             heading.className = "dayHeading"; heading.textContent = item.day;
-            records.appendChild(heading); lastDay = item.day;
+            records.appendChild(heading);
+
+            // その日の勤務時間を表示
+            const workingHours = calculateDailyWorkingHours(item.day, history);
+            const hoursDiv = document.createElement("div");
+            hoursDiv.style.cssText = "text-align: center; font-size: 12px; color: #999; padding: 2px 0 6px; border-bottom: 1px solid #eee;";
+            hoursDiv.textContent = "勤務時間：" + formatWorkingHours(workingHours);
+            records.appendChild(hoursDiv);
+
+            lastDay = item.day;
           }
           records.appendChild(makeRow(item, i));
         }
       }
+      updateStatusBar();
     }
 
     function currentState() {
+      const today = businessDay(getNow());
       let last = null;
-      for (let i = history.length - 1; i >= 0; i--) { if (!history[i].canceled) { last = history[i].type; break; } }
+      let latestTime = null;
+      for (let i = 0; i < history.length; i++) {
+        if (!history[i].canceled && history[i].day === today) {
+          if (latestTime === null || history[i].time > latestTime) {
+            last = history[i].type;
+            latestTime = history[i].time;
+          }
+        }
+      }
       if (last === null) return "未出勤";
       if (last === "出勤") return "勤務中";
       if (last === "戻り") return "勤務中";
@@ -786,15 +1398,243 @@
       return item;
     }
 
+    // 勤務時間を計算（時刻のみを比較）
+    function calculateDailyWorkingHours(date, allHistory) {
+      const dayData = allHistory.filter(h => h.day === date && !h.canceled);
+      if (dayData.length === 0) return null;
+
+      let checkInTime = null, checkOutTime = null;
+      const outTimes = [], returnTimes = [];
+
+      for (const item of dayData) {
+        if (item.type === "出勤") checkInTime = item.time;
+        else if (item.type === "退勤") checkOutTime = item.time;
+        else if (item.type === "外出") outTimes.push(item.time);
+        else if (item.type === "戻り") returnTimes.push(item.time);
+      }
+
+      if (!checkInTime || !checkOutTime) return null;
+
+      const timeToMinutes = (timeStr) => {
+        const [h, m] = timeStr.split(":").map(Number);
+        return h * 60 + m;
+      };
+
+      let workingMinutes = timeToMinutes(checkOutTime) - timeToMinutes(checkInTime);
+      for (let i = 0; i < outTimes.length; i++) {
+        const breakTime = timeToMinutes(returnTimes[i] || checkOutTime) - timeToMinutes(outTimes[i]);
+        workingMinutes -= breakTime;
+      }
+
+      const hours = Math.floor(workingMinutes / 60);
+      const minutes = workingMinutes % 60;
+      return { hours, minutes, totalMinutes: workingMinutes };
+    }
+
+    // 時間をHH:MM形式で表示
+    function formatWorkingHours(result) {
+      if (!result) return "-";
+      return `${result.hours}:${pad(result.minutes)}`;
+    }
+
+    // 月別レポート生成
+    function generateMonthlyReport(year, month) {
+      const monthStr = `${year}/${pad(month)}`;
+      const monthData = history.filter(h => h.day.startsWith(monthStr) && !h.canceled);
+
+      if (monthData.length === 0) {
+        return { days: [], totalMinutes: 0 };
+      }
+
+      const dayMap = {};
+      for (const item of monthData) {
+        if (!dayMap[item.day]) {
+          dayMap[item.day] = [];
+        }
+        dayMap[item.day].push(item);
+      }
+
+      const days = Object.keys(dayMap).sort().reverse();
+      let totalMinutes = 0;
+
+      const result = days.map(day => {
+        const dayItems = dayMap[day];
+        const workingHours = calculateDailyWorkingHours(day, dayItems);
+        if (workingHours) {
+          totalMinutes += workingHours.totalMinutes;
+        }
+        const checkIn = dayItems.find(i => i.type === "出勤")?.time || "-";
+        const checkOut = dayItems.find(i => i.type === "退勤")?.time || "-";
+        return { day, checkIn, checkOut, workingHours };
+      });
+
+      return { days: result, totalMinutes };
+    }
+
+    // CSV エクスポート
+    function exportToCSV(year, month) {
+      const report = generateMonthlyReport(year, month);
+      const lines = [
+        `月別レポート ${year}年${month}月`,
+        "",
+        "日付,出勤,退勤,勤務時間"
+      ];
+
+      for (const day of report.days) {
+        const hours = formatWorkingHours(day.workingHours);
+        lines.push(`${day.day},${day.checkIn},${day.checkOut},${hours}`);
+      }
+
+      const totalHours = Math.floor(report.totalMinutes / 60);
+      const totalMins = report.totalMinutes % 60;
+      lines.push("");
+      lines.push(`合計,,,${totalHours}:${pad(totalMins)}`);
+
+      const csv = lines.join("\n");
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = `punch_report_${year}_${pad(month)}.csv`;
+      link.click();
+    }
+
+    // レポート表示関数
+    function displayMonthlyReport(year, month) {
+      const report = generateMonthlyReport(year, month);
+      const table = document.getElementById("reportTable");
+
+      if (report.days.length === 0) {
+        table.innerHTML = '<div style="text-align: center; color: #999; padding: 20px;">この月のデータがありません</div>';
+        return;
+      }
+
+      let html = `<div style="font-size: 14px;"><strong>${year}年${month}月のレポート</strong></div><table style="width: 100%; border-collapse: collapse; margin-top: 12px;">
+        <tr style="border-bottom: 2px solid #ddd;">
+          <th style="padding: 8px; text-align: left;">日付</th>
+          <th style="padding: 8px; text-align: center;">出勤</th>
+          <th style="padding: 8px; text-align: center;">退勤</th>
+          <th style="padding: 8px; text-align: center;">勤務時間</th>
+        </tr>`;
+
+      for (const day of report.days) {
+        const hours = formatWorkingHours(day.workingHours);
+        html += `<tr style="border-bottom: 1px solid #eee;">
+          <td style="padding: 8px;">${day.day}</td>
+          <td style="padding: 8px; text-align: center;">${day.checkIn}</td>
+          <td style="padding: 8px; text-align: center;">${day.checkOut}</td>
+          <td style="padding: 8px; text-align: center;"><strong>${hours}</strong></td>
+        </tr>`;
+      }
+
+      const totalHours = Math.floor(report.totalMinutes / 60);
+      const totalMins = report.totalMinutes % 60;
+      html += `<tr style="background: #f5f5f5; font-weight: bold; border-top: 2px solid #ddd;">
+        <td colspan="3" style="padding: 8px; text-align: right;">合計：</td>
+        <td style="padding: 8px; text-align: center;">${totalHours}:${pad(totalMins)}</td>
+      </tr>`;
+
+      html += "</table>";
+      table.innerHTML = html;
+    }
+
+    // 申請レポート生成
+    function generateApplicationReport(type, year, month) {
+      const monthStr = `${year}/${pad(month)}`;
+      const typeMap = { "overtime": "残業申請", "paid_leave": "有給申請", "holiday_work": "休日出勤申請" };
+      const typeLabel = typeMap[type];
+
+      const filtered = applications.filter(app =>
+        app.type === typeLabel && app.values && app.values.date && app.values.date.startsWith(monthStr) && !app.canceled
+      );
+
+      return filtered.sort((a, b) => b.values.date.localeCompare(a.values.date));
+    }
+
+    // 申請レポート表示
+    function displayApplicationReport(type, year, month) {
+      const report = generateApplicationReport(type, year, month);
+      const table = document.getElementById("reportTable");
+      const typeMap = { "overtime": "残業申請", "paid_leave": "有給申請", "holiday_work": "休日出勤申請" };
+      const typeLabel = typeMap[type];
+
+      if (report.length === 0) {
+        table.innerHTML = `<div style="text-align: center; color: #999; padding: 20px;">この月の${typeLabel}がありません</div>`;
+        return;
+      }
+
+      let html = `<div style="font-size: 14px;"><strong>${year}年${month}月の${typeLabel}</strong></div><table style="width: 100%; border-collapse: collapse; margin-top: 12px;">
+        <tr style="border-bottom: 2px solid #ddd;">
+          <th style="padding: 8px; text-align: left;">日付</th>
+          <th style="padding: 8px; text-align: left;">内容</th>
+          <th style="padding: 8px; text-align: center;">ステータス</th>
+        </tr>`;
+
+      let approvedCount = 0;
+      for (const app of report) {
+        const content = Object.values(app.values).filter(v => v).join(" / ") || "-";
+        const statusText = app.approved ? "✓承認済" : "申請中";
+        const statusColor = app.approved ? "#4caf50" : "#ff9800";
+        if (app.approved) approvedCount++;
+
+        html += `<tr style="border-bottom: 1px solid #eee;">
+          <td style="padding: 8px;">${app.values.date}</td>
+          <td style="padding: 8px;">${content}</td>
+          <td style="padding: 8px; text-align: center; color: ${statusColor}; font-weight: bold;">${statusText}</td>
+        </tr>`;
+      }
+
+      const pendingCount = report.length - approvedCount;
+      html += `<tr style="background: #f5f5f5; border-top: 2px solid #ddd;">
+        <td colspan="3" style="padding: 8px; text-align: right;">申請中：${pendingCount}件 / 承認済：${approvedCount}件 / 合計：${report.length}件</td>
+      </tr>`;
+
+      html += "</table>";
+      table.innerHTML = html;
+    }
+
+    // 申請データを CSV エクスポート
+    function exportApplicationsToCSV(type, year, month) {
+      const report = generateApplicationReport(type, year, month);
+      const typeMap = { "overtime": "残業申請", "paid_leave": "有給申請", "holiday_work": "休日出勤申請" };
+      const typeLabel = typeMap[type];
+
+      const lines = [
+        `${typeLabel} ${year}年${month}月`,
+        "",
+        "日付,内容,ステータス"
+      ];
+
+      let approvedCount = 0;
+      for (const app of report) {
+        const content = Object.values(app.values).filter(v => v).join(" / ") || "-";
+        const statusText = app.approved ? "承認済" : "申請中";
+        if (app.approved) approvedCount++;
+        lines.push(`${app.values.date},${content},${statusText}`);
+      }
+
+      const pendingCount = report.length - approvedCount;
+      lines.push("");
+      lines.push(`申請中,${pendingCount}件`);
+      lines.push(`承認済,${approvedCount}件`);
+      lines.push(`合計,${report.length}件`);
+
+      const csv = lines.join("\n");
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = `${type}_${year}_${pad(month)}.csv`;
+      link.click();
+    }
+
     function openConfirm(type) {
       const now = getNow();
-      pending = { type: type, time: formatClock(now), day: businessDay(now) };
+      const pendingPunch = { type: type, time: formatClock(now), day: businessDay(now) };
       let prev = null;
       for (let i = history.length - 1; i >= 0; i--) { if (!history[i].canceled) { prev = history[i]; break; } }
       prevValue.textContent = prev ? (displayName(prev.type) + " " + prev.time) : "なし";
-      nowValue.textContent = displayName(pending.type) + " " + pending.time;
+      nowValue.textContent = displayName(pendingPunch.type) + " " + pendingPunch.time;
+      setUIState(UIState.PUNCH_CONFIRM, { pendingPunch: pendingPunch });
       showArea("confirm");
-      overlay.classList.add("show");
       const conflict = checkConflict(type);
       if (conflict === null) { showNormalMode(); } else { showConflictMode(conflict); }
     }
@@ -827,28 +1667,63 @@
     }
 
     function closeConfirm() {
-      overlay.classList.remove("show");
-      pending = null; fillType = null; editIndex = null; deleteIndex = null;
+      closeUI();
       clearTimeout(lockTimer);
     }
 
+    function savePunchToFirestore(type, time, day) {
+      // Firestore未設定またはログインしていない場合はスキップ
+      if (!isFirebaseConfigured || !currentUser || !db) {
+        return Promise.resolve();
+      }
+
+      const timestamp = getNow();
+      return db.collection("users").doc(currentUser.uid)
+        .collection("punches").add({
+          type: type,
+          time: time,
+          date: day,
+          timestamp: firebase.firestore.Timestamp.fromDate(timestamp),
+          createdAt: firebase.firestore.Timestamp.fromDate(timestamp)
+        })
+        .catch((error) => {
+          console.error("Firestore保存エラー:", error);
+          // デモモード時は警告を表示しない
+          if (isFirebaseConfigured) {
+            alert("データ保存に失敗しました。インターネット接続を確認してください。");
+          }
+        });
+    }
+
     function confirmPunch() {
-      if (pending === null) return;
-      history.push(makePunch(pending.type, pending.time, pending.day, false, false, "作成（" + pending.time + "）"));
+      if (currentUIState !== UIState.PUNCH_CONFIRM || !uiData.pendingPunch) return;
+      const pending = uiData.pendingPunch;
+      const item = makePunch(pending.type, pending.time, pending.day, false, false, "作成（" + pending.time + "）");
+      history.push(item);
+      savePunchToFirestore(pending.type, pending.time, pending.day);
       renderHistory(); closeConfirm();
     }
 
     function fixFill() {
-      if (pending === null || fillType === null) return;
+      if (!uiData.pendingPunch || !fillType) return;
       editIndex = null;
-      showArea("time");
       fillLeadText.textContent = "補う打刻の時刻を入力";
-      fillSubText.textContent = "「" + displayName(pending.type) + " " + pending.time + "」はそのまま記録します。先に補う「" + displayName(fillType) + "」の正しい時刻を入れてください。";
+      fillSubText.textContent = "「" + displayName(uiData.pendingPunch.type) + " " + uiData.pendingPunch.time + "」はそのまま記録します。先に補う「" + displayName(fillType) + "」の正しい時刻を入れてください。";
       const now = getNow();
       timeInput.value = pad(now.getHours()) + ":" + pad(now.getMinutes());
+      setUIState(UIState.PUNCH_EDIT, { fillType: fillType, pendingPunch: uiData.pendingPunch });
     }
 
-    function fillBack() { if (editIndex !== null) { closeConfirm(); } else { showArea("confirm"); } }
+    function fillBack() {
+      if (editIndex !== null) {
+        closeConfirm();
+      } else if (uiData.pendingPunch) {
+        setUIState(UIState.PUNCH_CONFIRM, { pendingPunch: uiData.pendingPunch });
+        leadText.textContent = "打刻の順番が普段と違うようです";
+        normalButtons.classList.add("hide");
+        fixButtons.classList.add("show");
+      }
+    }
 
     function fillDone() {
       if (!timeInput.value) return;
@@ -857,33 +1732,56 @@
         const item = history[editIndex];
         if (item.time !== newTime) {
           const oldTime = item.time;
-          item.time = newTime; item.edited = true; item.pending = true;
+          item.time = newTime;
+          item.edited = true;
+          item.pending = true;
           addLog(item, "時刻を " + oldTime + " → " + newTime + " に修正（申請中）");
+
+          // 修正内容をFirestoreに保存
+          if (item.docId && isFirebaseConfigured && currentUser && db) {
+            db.collection("users").doc(currentUser.uid)
+              .collection("punches").doc(item.docId)
+              .update({
+                time: newTime,
+                edited: true,
+                pending: true
+              })
+              .catch((error) => console.error("Firestore更新エラー:", error));
+          }
         }
+        editIndex = null;
         renderHistory(); closeConfirm(); return;
       }
-      if (pending === null || fillType === null) return;
-      history.push(makePunch(fillType, newTime, pending.day, true, false, "補完として作成（" + newTime + "・申請中）"));
-      history.push(makePunch(pending.type, pending.time, pending.day, false, false, "作成（" + pending.time + "）"));
-      renderHistory(); closeConfirm();
+      if (!uiData.pendingPunch || !fillType) return;
+      const savedPending = uiData.pendingPunch;
+      const fillItem = makePunch(fillType, newTime, savedPending.day, true, false, "補完として作成（" + newTime + "・申請中）");
+      const mainItem = makePunch(savedPending.type, savedPending.time, savedPending.day, false, false, "作成（" + savedPending.time + "）");
+      history.push(fillItem);
+      history.push(mainItem);
+      savePunchToFirestore(fillType, newTime, savedPending.day);
+      savePunchToFirestore(savedPending.type, savedPending.time, savedPending.day);
+      renderHistory();
+
+      // 補完打刻は既に Firestore に保存済みなので、そのまま終了
+      pending = null;
+      fillType = null;
+      closeConfirm();
     }
 
     function openEdit(index) {
       editIndex = index; pending = null;
       const item = history[index];
-      showArea("time");
-      overlay.classList.add("show");
       fillLeadText.textContent = "打刻時刻の修正";
       fillSubText.textContent = "「" + displayName(item.type) + "」の時刻を修正します。修正すると申請中になります。";
       timeInput.value = item.time.slice(0, 5);
+      setUIState(UIState.PUNCH_EDIT, { editingIndex: index });
     }
 
     function openDelete(index) {
       deleteIndex = index;
       const item = history[index];
-      showArea("delete");
-      overlay.classList.add("show");
       delSubText.textContent = "「" + displayName(item.type) + " " + item.time + "」を履歴から完全に消します。この操作は元に戻せません（完全履歴には記録が残ります）。";
+      setUIState(UIState.PUNCH_DELETE, { deletingIndex: index });
     }
 
     function deleteConfirm() {
@@ -898,7 +1796,9 @@
     function fixCancel() { closeConfirm(); }
     function fixForce() {
       if (pending === null) return;
-      history.push(makePunch(pending.type, pending.time, pending.day, false, false, "作成（順番警告を無視・" + pending.time + "）"));
+      const item = makePunch(pending.type, pending.time, pending.day, false, false, "作成（順番警告を無視・" + pending.time + "）");
+      history.push(item);
+      savePunchToFirestore(pending.type, pending.time, pending.day);
       renderHistory(); closeConfirm();
     }
 
@@ -908,7 +1808,11 @@
     const applyBtns = document.querySelectorAll(".applyBtn");
     for (const btn of applyBtns) { btn.addEventListener("click", function () { openApplyForm(btn.dataset.apply); }); }
 
+    // okBtn の設定：通常モード時は非表示、テキストを「承認」に変更
+    okBtn.textContent = "承認する";
+    okBtn.style.display = devMode ? "block" : "none";
     okBtn.addEventListener("click", confirmPunch);
+
     cancelBtn.addEventListener("click", closeConfirm);
     fixFillBtn.addEventListener("click", fixFill);
     fixCancelBtn.addEventListener("click", fixCancel);
@@ -930,6 +1834,81 @@
       fixModeBtn.classList.toggle("active", fixMode);
       fixModeBtn.textContent = fixMode ? "修正を終える" : "打刻を修正";
       renderHistory();
+    });
+
+    // レポート関連のイベントリスナー
+    const reportBtnTop = document.getElementById("reportBtnTop");
+    const reportMonth = document.getElementById("reportMonth");
+    const reportBtn = document.getElementById("reportBtn");
+    const exportCsvBtn = document.getElementById("exportCsvBtn");
+    const reportBackBtn = document.getElementById("reportBackBtn");
+    const reportTypeBtns = document.querySelectorAll(".reportTypeBtn");
+
+    let currentReportType = "working";  // デフォルトは勤務時間
+
+    // デフォルトで今月を設定
+    const now = getNow();
+    reportMonth.value = `${now.getFullYear()}-${pad(now.getMonth() + 1)}`;
+
+    // レポート種別ボタンのイベントリスナー
+    for (const btn of reportTypeBtns) {
+      btn.addEventListener("click", function () {
+        currentReportType = btn.dataset.type;
+        // 全てのボタンのactive状態を解除
+        for (const b of reportTypeBtns) {
+          b.classList.remove("active");
+          b.style.background = "#e0e0e0";
+          b.style.color = "#333";
+        }
+        // クリックされたボタンをactive状態に
+        btn.classList.add("active");
+        btn.style.background = "#4a3f8f";
+        btn.style.color = "white";
+        // レポートを再表示
+        displayReport();
+      });
+    }
+
+    function displayReport() {
+      const [year, month] = reportMonth.value.split("-").map(Number);
+      if (currentReportType === "working") {
+        displayMonthlyReport(year, month);
+      } else {
+        displayApplicationReport(currentReportType, year, month);
+      }
+    }
+
+    // 右上の「レポート」ボタン（レポート画面ではホームに戻るボタンに変化）
+    reportBtnTop.addEventListener("click", function () {
+      if (page === 3) {
+        page = 0;  // ホームに戻る
+      } else {
+        page = 3;  // レポートに移動
+      }
+      renderHistory();
+    });
+
+    reportBtn.addEventListener("click", function () {
+      displayReport();
+    });
+
+    exportCsvBtn.addEventListener("click", function () {
+      const [year, month] = reportMonth.value.split("-").map(Number);
+      if (currentReportType === "working") {
+        exportToCSV(year, month);
+      } else {
+        exportApplicationsToCSV(currentReportType, year, month);
+      }
+    });
+
+    reportBackBtn.addEventListener("click", function () {
+      page = 0;
+      renderHistory();
+    });
+
+    // 月変更時にレポートを再表示
+    reportMonth.addEventListener("change", function () {
+      displayReport();
     });
 
     settingsBtn.addEventListener("click", function () {
@@ -955,12 +1934,22 @@
     settingsClose.addEventListener("click", function () { applySettings(); settingsPanel.classList.remove("show"); });
 
     function refreshDevUI() {
-      devBadge.classList.toggle("show", devMode);
-      devOffBtn.classList.toggle("show", devMode);
+      const isDevModeOrManualTime = devMode || timeMode !== TimeMode.REAL;
+      devBadge.classList.toggle("show", isDevModeOrManualTime);
+      devOffBtn.classList.toggle("show", isDevModeOrManualTime);
     }
     devBadge.addEventListener("click", function () { devPanel.classList.add("show"); });
     devOffBtn.addEventListener("click", function () {
       devMode = false; devEnable.checked = false;
+      // 手動時間が有効なら、リアルタイムに戻す
+      if (timeMode !== TimeMode.REAL) {
+        timeMode = TimeMode.REAL;
+        fixedTime = null;
+        timeOffset = 0;
+        useFakeTime.checked = false;
+        restartFakeTime.checked = false;
+        tickClock();
+      }
       if (page === 2) { page = 1; }
       refreshDevUI(); renderHistory();
     });
@@ -982,30 +1971,86 @@
 
     devEnable.addEventListener("change", function () {
       devMode = devEnable.checked;
+      okBtn.style.display = devMode ? "block" : "none";
       if (!devMode && page === 2) { page = 1; }
       refreshDevUI(); renderHistory();
+      renderApplications();
     });
+
     devCloseBtn.addEventListener("click", function () { devPanel.classList.remove("show"); });
-    useFakeTime.addEventListener("change", function () { if (!useFakeTime.checked) { fakeTime = null; tickClock(); } });
-    applyFakeBtn.addEventListener("click", function () {
-      if (!useFakeTime.checked) { alert("先に「時刻を手動指定する」にチェックを入れてください"); return; }
-      if (!fakeTimeInput.value) return;
-      fakeTime = new Date(fakeTimeInput.value);
-      tickClock(); renderHistory();
+    useFakeTime.addEventListener("change", function () {
+      if (useFakeTime.checked) {
+        // チェック → テキストボックスの値があればそれを使用、なければ現在時刻
+        if (fakeTimeInput.value) {
+          fixedTime = new Date(fakeTimeInput.value);
+        } else {
+          const now = new Date();
+          fixedTime = new Date(now);
+          fakeTimeInput.value = now.getFullYear() + "-" + pad(now.getMonth() + 1) + "-" + pad(now.getDate()) +
+            "T" + pad(now.getHours()) + ":" + pad(now.getMinutes()) + ":" + pad(now.getSeconds());
+        }
+        timeMode = TimeMode.FIXED;
+        timeOffset = 0;
+        restartFakeTime.checked = false;
+        tickClock();
+      } else {
+        // チェック外す → リアルタイムに戻す
+        timeMode = TimeMode.REAL;
+        fixedTime = null;
+        timeOffset = 0;
+        restartFakeTime.checked = false;
+        tickClock();
+      }
+      refreshDevUI();
+    });
+
+    fakeTimeInput.addEventListener("change", function () {
+      // テキストボックスが手動で変更されたら、その時刻に固定
+      if (useFakeTime.checked && fakeTimeInput.value) {
+        fixedTime = new Date(fakeTimeInput.value);
+        timeMode = TimeMode.FIXED;
+        timeOffset = 0;
+        restartFakeTime.checked = false;
+        tickClock();
+        refreshDevUI();
+      }
+    });
+
+    restartFakeTime.addEventListener("change", function () {
+      if (restartFakeTime.checked) {
+        // チェック → リスタート（固定時刻から時間進行開始）
+        if (useFakeTime.checked && fixedTime) {
+          const baseTime = fixedTime;
+          const realNow = new Date();
+          timeOffset = baseTime.getTime() - realNow.getTime();
+          timeMode = TimeMode.ADVANCING;
+
+          // UIのチェックボックスは固定を外す
+          useFakeTime.checked = false;
+
+          tickClock();
+        }
+      } else {
+        // チェック外す → リアルタイムに戻す
+        timeMode = TimeMode.REAL;
+        fixedTime = null;
+        timeOffset = 0;
+        useFakeTime.checked = false;
+        tickClock();
+      }
+      refreshDevUI();
     });
     nightMode.addEventListener("change", function () { renderHistory(); });
 
     // ===== 認証処理 =====
     function showLoginView() {
-      loginView.classList.add("show");
-      homeView.classList.add("hide");
+      setUIState(UIState.LOGIN);
       userInfo.classList.add("hidden");
       logoutBtn.classList.add("hidden");
     }
 
     function showHomeView() {
-      loginView.classList.remove("show");
-      homeView.classList.remove("hide");
+      setUIState(UIState.HOME);
       userInfo.classList.remove("hidden");
       logoutBtn.classList.remove("hidden");
     }
@@ -1025,7 +2070,13 @@
     // Googleでログイン
     function loginWithGoogle() {
       if (!auth) {
-        alert("Firebaseが設定されていません。Firebaseプロジェクト情報を設定してください。");
+        // Firebase未設定の場合、デモユーザーでログイン
+        currentUser = {
+          uid: "demo_user_" + Date.now(),
+          displayName: "デモユーザー",
+          email: "demo@example.com"
+        };
+        updateUserUI(currentUser);
         return;
       }
       const provider = new firebase.auth.GoogleAuthProvider();
@@ -1057,11 +2108,70 @@
         });
     }
 
+    function loadAllPunchesFromFirestore() {
+      // Firestore未設定の場合はローカルデータのみで動作
+      if (!isFirebaseConfigured || !currentUser || !db) {
+        renderHistory();
+        return;
+      }
+
+      // 既存のリスナーがあれば削除
+      if (firestoreUnsubscribe) {
+        firestoreUnsubscribe();
+      }
+
+      // リアルタイムリスナーを設定（全期間のデータを古い順に取得）
+      firestoreUnsubscribe = db.collection("users").doc(currentUser.uid)
+        .collection("punches")
+        .orderBy("timestamp", "asc")  // 古い順（currentState()が最新状態を正しく判定できる）
+        .onSnapshot(
+          (snapshot) => {
+            // ローカル履歴を更新
+            history.length = 0;
+            snapshot.forEach((doc) => {
+              const data = doc.data();
+              const item = makePunch(data.type, data.time, data.date, data.pending || false, data.edited || false, "Firestoreから読み込み");
+              item.docId = doc.id;
+              // Firestoreのフラグがあれば反映
+              if (data.canceled !== undefined) {
+                item.canceled = data.canceled;
+              }
+              if (data.edited !== undefined) {
+                item.edited = data.edited;
+              }
+              if (data.pending !== undefined) {
+                item.pending = data.pending;
+              }
+              history.push(item);
+            });
+            // 本日のデータを表示するため、page = 0 にリセット
+            page = 0;
+            renderHistory();
+          },
+          (error) => {
+            console.error("Firestoreリスナーエラー:", error);
+            // エラー時でもローカルデータで表示を続ける
+            renderHistory();
+          }
+        );
+    }
+
     // 認証状態の変化を監視
     if (isFirebaseConfigured) {
       auth.onAuthStateChanged((user) => {
         currentUser = user;
         updateUserUI(user);
+
+        if (user) {
+          // ログイン時：Firestoreから今日のデータを読み込み
+          loadAllPunchesFromFirestore();
+        } else {
+          // ログアウト時：リスナーを削除
+          if (firestoreUnsubscribe) {
+            firestoreUnsubscribe();
+            firestoreUnsubscribe = null;
+          }
+        }
       });
     } else {
       // Firebase未設定の場合、デモモードで動作
