@@ -122,8 +122,10 @@
     .formBackBtn { flex: 1; padding: 12px; font-size: 15px; border: none; border-radius: 8px; background: #e0e0e0; color: #444; cursor: pointer; }
     .formSubmitBtn { flex: 1; padding: 12px; font-size: 15px; border: none; border-radius: 8px; background: #2e9e5b; color: white; cursor: pointer; }
 
-    #overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: none; align-items: center; justify-content: center; z-index: 50; }
+    #overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: none; align-items: center; justify-content: center; z-index: 85; }
     #overlay.show { display: flex; }
+    #adminDecisionDialog { display: none; }
+    #adminDecisionDialog.show { display: block !important; }
     #dialog { background: white; border-radius: 14px; padding: 28px 24px; width: 360px; max-width: 90%; box-shadow: 0 8px 30px rgba(0,0,0,0.25); text-align: center; }
     #dialog .lead { font-size: 15px; color: #666; margin-bottom: 16px; }
     .compare { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
@@ -163,6 +165,15 @@
 
     #settingsPanel { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); align-items: center; justify-content: center; z-index: 90; }
     #settingsPanel.show { display: flex; }
+    #profileSettingOverlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); align-items: center; justify-content: center; z-index: 100; }
+    #profileSettingOverlay.show { display: flex; }
+    #profileSettingBox { background: white; border-radius: 14px; padding: 30px; width: 380px; max-width: 92%; box-shadow: 0 8px 30px rgba(0,0,0,0.3); }
+    #adminPanel { display: none; position: fixed; inset: 0; background: white; z-index: 80; overflow-y: auto; }
+    #adminPanel.show { display: block; }
+    #adminHeader { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; background: white; border-bottom: 1px solid #eee; position: sticky; top: 0; z-index: 5; }
+    #adminHeader h1 { margin: 0; font-size: 20px; }
+    #adminCloseBtn { border: none; background: #e0e0e0; color: #444; border-radius: 6px; padding: 6px 12px; font-size: 13px; cursor: pointer; }
+    #adminContent { padding: 16px; max-width: 1200px; margin: 0 auto; }
     #settingsBox { background: white; border-radius: 14px; padding: 24px; width: 400px; max-width: 92%; max-height: 84vh; overflow-y: auto; box-shadow: 0 8px 30px rgba(0,0,0,0.25); }
     #settingsBox h2 { margin: 0 0 16px; font-size: 20px; text-align: center; }
     .setSection { margin-bottom: 22px; }
@@ -185,10 +196,11 @@
 <body>
   <div id="devPanel">
     <div class="devTitle">開発者モード</div>
-    <div class="devRow"><label><input type="checkbox" id="devEnable"> 完全削除・完全履歴・承認・却下</label></div>
+    <div class="devRow"><label><input type="checkbox" id="devEnable"> 完全削除・監査ログ・承認・却下</label></div>
     <div class="devRow"><label><input type="checkbox" id="useFakeTime"> この時刻に固定</label><input type="datetime-local" id="fakeTimeInput" step="1"></div>
     <div class="devRow"><label><input type="checkbox" id="restartFakeTime"> リスタート（固定した時間から進める）</label></div>
     <div class="devRow"><label><input type="checkbox" id="nightMode"> 夜勤モード（朝4時の自動区切りをしない）</label></div>
+    <div class="devRow"><label><input type="checkbox" id="adminMode"> 管理者モード</label></div>
     <div class="devRow"><button class="devBtn devClose" id="devCloseBtn">閉じる</button></div>
   </div>
 
@@ -212,6 +224,7 @@
     </div>
     <span class="spacer"></span>
     <button id="reportBtnTop" style="border: none; background: #f0e2c8; color: #7a5a10; border-radius: 6px; padding: 6px 12px; font-size: 13px; cursor: pointer; margin-right: 8px;">レポート</button>
+    <button id="adminBtnTop" style="display: none; border: none; background: #4a3f8f; color: white; border-radius: 6px; padding: 6px 12px; font-size: 13px; cursor: pointer; margin-right: 8px;">管理者</button>
     <button id="settingsBtn">設定</button>
     <button id="logoutBtn" class="hidden">ログアウト</button>
   </div>
@@ -308,6 +321,13 @@
     <div id="settingsBox">
       <h2>設定</h2>
       <div class="setSection">
+        <div class="setTitle">プロフィール情報</div>
+        <div class="nameRow"><span class="nameCaption">名前</span><input id="settingsName" type="text"></div>
+        <div class="nameRow"><span class="nameCaption">社員番号</span><input id="settingsEmployeeId" type="text"></div>
+        <div class="nameRow"><span class="nameCaption">所属</span><input id="settingsDepartment" type="text"></div>
+        <button id="settingsSaveProfileBtn" style="margin-top: 10px; width: 100%; padding: 8px; background: #2e9e5b; color: white; border: none; border-radius: 4px; cursor: pointer;">プロフィール情報を保存</button>
+      </div>
+      <div class="setSection">
         <div class="setTitle">打刻ボタンの名称</div>
         <div class="nameRow"><span class="nameCaption">出勤</span><input id="nameIn" type="text"></div>
         <div class="nameRow"><span class="nameCaption">退勤</span><input id="nameOut" type="text"></div>
@@ -324,9 +344,76 @@
     </div>
   </div>
 
+  <!-- プロフィール設定ダイアログ -->
+  <div id="profileSettingOverlay">
+    <div id="profileSettingBox">
+      <h2>プロフィール設定</h2>
+      <p style="color: #666; font-size: 13px; margin-bottom: 20px;">お疲れ様です。プロフィール情報を設定してください</p>
+      <form id="profileForm">
+        <div style="margin-bottom: 16px;">
+          <label style="display: block; font-weight: bold; margin-bottom: 6px;">名前 <span style="color: #c0392b;">*</span></label>
+          <input type="text" id="profileName" placeholder="例：田中太郎" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;" required>
+        </div>
+        <div style="margin-bottom: 16px;">
+          <label style="display: block; font-weight: bold; margin-bottom: 6px;">社員番号 <span style="color: #c0392b;">*</span></label>
+          <input type="text" id="profileEmployeeId" placeholder="例：001" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;" required>
+        </div>
+        <div style="margin-bottom: 20px;">
+          <label style="display: block; font-weight: bold; margin-bottom: 6px;">所属 <span style="color: #c0392b;">*</span></label>
+          <input type="text" id="profileDepartment" placeholder="例：営業部" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;" required>
+        </div>
+        <div style="display: flex; gap: 10px;">
+          <button type="button" id="profileSkipBtn" style="flex: 1; padding: 10px; background: #e0e0e0; color: #333; border: none; border-radius: 4px; cursor: pointer;">スキップ</button>
+          <button type="submit" id="profileSaveBtn" style="flex: 1; padding: 10px; background: #2e9e5b; color: white; border: none; border-radius: 4px; cursor: pointer;">保存して続ける</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 管理者画面 -->
+  <div id="adminPanel">
+    <div id="adminHeader">
+      <h1>管理者画面</h1>
+      <button id="adminCloseBtn">ホームに戻る</button>
+    </div>
+    <div id="adminContent">
+      <!-- タブ -->
+      <div id="adminTabs" style="display: flex; gap: 10px; border-bottom: 2px solid #eee; margin-bottom: 20px;">
+        <button id="adminTab1" class="adminTabBtn active" data-tab="status" style="padding: 12px 20px; background: none; border: none; border-bottom: 3px solid #4a3f8f; color: #4a3f8f; cursor: pointer; font-weight: bold;">本日の勤務状況</button>
+        <button id="adminTab2" class="adminTabBtn" data-tab="applications" style="padding: 12px 20px; background: none; border: none; border-bottom: 3px solid transparent; color: #666; cursor: pointer; font-weight: bold;">🚨 未承認申請</button>
+      </div>
+
+      <!-- タブ1：本日の勤務状況 -->
+      <div id="adminStatusTab" class="adminTab active" style="background: white; border-radius: 10px; padding: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.1);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+          <h3 style="margin: 0;">本日の勤務状況</h3>
+          <select id="adminSortSelect" style="padding: 6px 10px; border: 1px solid #ddd; border-radius: 4px; background: white; cursor: pointer;">
+            <option value="normal">通常（名前順）</option>
+            <option value="overtime">残業時間が長い順</option>
+            <option value="late">遅刻・早退が多い順</option>
+            <option value="vacation">休暇取得状況</option>
+            <option value="status">ステータス順</option>
+          </select>
+        </div>
+        <div id="adminStatusList" style="border: 1px solid #eee; border-radius: 4px; overflow: hidden;">
+          <div style="padding: 20px; text-align: center; color: #aaa;">データ読み込み中...</div>
+        </div>
+      </div>
+
+      <!-- タブ2：未承認申請 -->
+      <div id="adminApplicationsTab" class="adminTab" style="background: white; border-radius: 10px; padding: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); display: none;">
+        <h3 style="margin: 0 0 16px;">🚨 未承認申請</h3>
+        <div id="adminApplicationsList" style="border: 1px solid #eee; border-radius: 4px; overflow: hidden;">
+          <div style="padding: 20px; text-align: center; color: #aaa;">申請がありません</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div id="overlay">
     <div id="dialog">
-      <div id="confirmArea">
+      <!-- openConfirm 用：固定ダイアログ -->
+      <div id="punchConfirmArea">
         <div class="lead" id="leadText">この内容で打刻します</div>
         <div class="compare">
           <div class="col"><div class="caption">前回の打刻</div><div class="value" id="prevValue">なし</div></div>
@@ -344,6 +431,18 @@
           <button class="fixBtn ghost"     id="fixForceBtn">それでもこのまま打刻する</button>
         </div>
       </div>
+      <!-- その他のダイアログ用：動的ダイアログ -->
+      <div id="confirmArea"></div>
+
+      <!-- 管理者画面：承認・却下確認ダイアログ（固定配置） -->
+      <div id="adminDecisionDialog" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 28px 24px; border-radius: 14px; box-shadow: 0 8px 30px rgba(0,0,0,0.25); z-index: 1000; width: 360px; max-width: 90%; text-align: center;">
+        <div style="font-size: 15px; color: #666; margin-bottom: 20px;" id="adminDialogMessage"></div>
+        <div style="display: flex; gap: 12px; justify-content: space-between;">
+          <button id="adminDialogCancel" style="flex: 1; padding: 12px 22px; background: #e0e0e0; border: none; border-radius: 8px; cursor: pointer; font-size: 15px; color: #444;">キャンセル</button>
+          <button id="adminDialogOk" style="flex: 1; padding: 12px 22px; background: #2e9e5b; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 15px;"></button>
+        </div>
+      </div>
+
       <div id="timeInputArea">
         <div class="fillLead" id="fillLeadText">時刻を入力</div>
         <div class="fillSub" id="fillSubText"></div>
@@ -380,6 +479,7 @@
     let auth = null;
     let currentUser = null;
     const isFirebaseConfigured = firebaseConfig.apiKey && firebaseConfig.apiKey !== "YOUR_API_KEY";
+    console.log("Firebase Configuration Status:", { isFirebaseConfigured, apiKey: firebaseConfig.apiKey });
 
     let db = null;
     if (isFirebaseConfigured) {
@@ -431,6 +531,7 @@
     const formSubmitBtn = document.getElementById("formSubmitBtn");
     const appRecords = document.getElementById("appRecords");
 
+    const punchConfirmArea = document.getElementById("punchConfirmArea");
     const confirmArea = document.getElementById("confirmArea");
     const timeInputArea = document.getElementById("timeInputArea");
     const deleteArea = document.getElementById("deleteArea");
@@ -466,6 +567,19 @@
 
     const settingsPanel = document.getElementById("settingsPanel");
     const settingsClose = document.getElementById("settingsClose");
+    const settingsSaveProfileBtn = document.getElementById("settingsSaveProfileBtn");
+    const settingsName = document.getElementById("settingsName");
+    const settingsEmployeeId = document.getElementById("settingsEmployeeId");
+    const settingsDepartment = document.getElementById("settingsDepartment");
+    const profileSettingOverlay = document.getElementById("profileSettingOverlay");
+    const profileForm = document.getElementById("profileForm");
+    const profileName = document.getElementById("profileName");
+    const profileEmployeeId = document.getElementById("profileEmployeeId");
+    const profileDepartment = document.getElementById("profileDepartment");
+    const profileSkipBtn = document.getElementById("profileSkipBtn");
+    const adminPanel = document.getElementById("adminPanel");
+    const adminCloseBtn = document.getElementById("adminCloseBtn");
+    const adminBtnTop = document.getElementById("adminBtnTop");
     const nameIn = document.getElementById("nameIn");
     const nameOut = document.getElementById("nameOut");
     const nameLeave = document.getElementById("nameLeave");
@@ -481,6 +595,7 @@
     const restartFakeTime = document.getElementById("restartFakeTime");
     const devCloseBtn = document.getElementById("devCloseBtn");
     const nightMode = document.getElementById("nightMode");
+    const adminMode = document.getElementById("adminMode");
 
     // 時刻管理：3つのモードのいずれかに限定
     const TimeMode = {
@@ -513,14 +628,34 @@
     const applications = [];   // 申請の記録（勤怠とは別）
     let lockTimer = null;
 
+    // ===== 管理者機能関連 =====
+    let isAdmin = false;  // 管理者フラグ
+    let allUsersData = {};  // 全ユーザーのデータ（管理者画面用）
+
+    // テキストを50字で折り返す
+    function wrapText(text, width = 50) {
+      if (!text) return text;
+      const str = String(text);
+      let result = "";
+      for (let i = 0; i < str.length; i += width) {
+        if (i > 0) result += "<br>";
+        result += str.substring(i, i + width);
+      }
+      return result;
+    }
+
     // ===== UI状態管理（統一化） =====
     const UIState = {
       HOME: "home",                // ホーム画面
       PUNCH_CONFIRM: "punch_confirm",     // 打刻確認ダイアログ
       PUNCH_EDIT: "punch_edit",           // 打刻編集ダイアログ
-      PUNCH_DELETE: "punch_delete",       // 削除確認ダイアログ
+      PUNCH_DELETE: "punch_delete",       // 打刻削除確認ダイアログ
+      PUNCH_CANCEL: "punch_cancel",       // 打刻取り消し確認ダイアログ
+      PUNCH_APPROVE: "punch_approve",     // 打刻承認確認ダイアログ
+      APP_APPROVE: "app_approve",         // 申請承認確認ダイアログ
       APPLY_FORM: "apply_form",          // 申請フォーム
       SETTINGS: "settings",              // 設定パネル
+      ADMIN: "admin",                    // 管理者画面
       LOGIN: "login"                     // ログイン画面
     };
 
@@ -617,11 +752,13 @@
           overlay.classList.remove("show");
           applyView.classList.remove("show");
           settingsPanel.classList.remove("show");
+          adminPanel.classList.remove("show");
+          showArea("");  // 全ての表示エリアを非表示にする
           break;
 
         case UIState.PUNCH_CONFIRM:
           overlay.classList.add("show");
-          showArea("confirm");
+          showArea("punch_confirm");
           break;
 
         case UIState.PUNCH_EDIT:
@@ -634,6 +771,21 @@
           showArea("delete");
           break;
 
+        case UIState.PUNCH_CANCEL:
+          overlay.classList.add("show");
+          showArea("confirm");
+          break;
+
+        case UIState.PUNCH_APPROVE:
+          overlay.classList.add("show");
+          showArea("confirm");
+          break;
+
+        case UIState.APP_APPROVE:
+          overlay.classList.add("show");
+          showArea("confirm");
+          break;
+
         case UIState.APPLY_FORM:
           homeView.classList.add("hide");
           applyView.classList.add("show");
@@ -641,6 +793,10 @@
 
         case UIState.SETTINGS:
           settingsPanel.classList.add("show");
+          break;
+
+        case UIState.ADMIN:
+          adminPanel.classList.add("show");
           break;
       }
     }
@@ -659,14 +815,14 @@
       uiData.editingIndex = null;
       uiData.deletingIndex = null;
       uiData.applyingType = null;
+      adminDialogShowing = false; // 管理者ダイアログフラグをリセット
+      console.log("closeUI called, adminDialogShowing reset to false");
       updateUIForState();
     }
 
     // 申請承認確認ダイアログを開く
     function openApproveConfirm(index, app) {
       console.log("openApproveConfirm called with index:", index, "app:", app);
-      uiData.approvingIndex = index;
-      uiData.approvingApp = app;
 
       confirmArea.innerHTML = `
         <div class="lead">この申請を承認します</div>
@@ -688,18 +844,16 @@
         </div>
       `;
 
-      overlay.classList.add("show");
+      setUIState(UIState.APP_APPROVE);
 
       document.getElementById("approveCancelBtn").addEventListener("click", function() {
-        overlay.classList.remove("show");
+        closeUI();
       });
 
       document.getElementById("approveOkBtn").addEventListener("click", function() {
         console.log("Approve confirmed for index:", index);
-        applications[index].approved = true;
-        renderApplications();
-        renderHistory();
-        overlay.classList.remove("show");
+        updateApplicationStatusInFirestore(index, "approved", true);
+        closeUI();
       });
     }
 
@@ -721,10 +875,10 @@
         </div>
       `;
 
-      overlay.classList.add("show");
+      setUIState(UIState.PUNCH_CANCEL);  // confirmArea 設定後に状態遷移
 
       document.getElementById("cancelCancelBtn").addEventListener("click", function() {
-        overlay.classList.remove("show");
+        closeUI();
       });
 
       document.getElementById("cancelOkBtn").addEventListener("click", function() {
@@ -735,9 +889,11 @@
             .collection("punches").doc(item.docId)
             .update({ canceled: true })
             .catch((error) => console.error("Firestore更新エラー:", error));
+          // 取り消し後、本日の有効な打刻からステータスを再計算
+          updateUserStatusFromTodaysPunches(currentUser.uid);
         }
         renderHistory();
-        overlay.classList.remove("show");
+        closeUI();
       });
     }
 
@@ -759,10 +915,10 @@
         </div>
       `;
 
-      overlay.classList.add("show");
+      setUIState(UIState.PUNCH_APPROVE);
 
       document.getElementById("punchApproveCancelBtn").addEventListener("click", function() {
-        overlay.classList.remove("show");
+        closeUI();
       });
 
       document.getElementById("punchApproveOkBtn").addEventListener("click", function() {
@@ -775,7 +931,7 @@
             .catch((error) => console.error("Firestore更新エラー:", error));
         }
         renderHistory();
-        overlay.classList.remove("show");
+        closeUI();
       });
     }
 
@@ -788,6 +944,24 @@
       if (!nightMode.checked && d.getHours() < 4) { d.setDate(d.getDate() - 1); }
       return formatDate(d);
     }
+
+    // Firestoreの Timestamp または日時文字列をフォーマット
+    function formatDecisionTime(timestamp) {
+      if (!timestamp) return "-";
+      let date;
+      // Firestore Timestamp か確認
+      if (timestamp.toDate) {
+        date = timestamp.toDate();
+      } else if (typeof timestamp === "string") {
+        date = new Date(timestamp);
+      } else if (timestamp instanceof Date) {
+        date = timestamp;
+      } else {
+        return "-";
+      }
+      return formatDate(date) + " " + formatClock(date);
+    }
+
     function displayName(type) { return names[type] || type; }
     function addLog(item, text) {
       const now = getNow();
@@ -852,6 +1026,7 @@
         let input;
         if (field.type === "textarea") {
           input = document.createElement("textarea");
+          input.maxLength = 100;
         } else {
           input = document.createElement("input");
           input.type = field.type;
@@ -898,18 +1073,104 @@
         values.date = `${year}/${month}/${day}`;
       }
 
-      applications.push({
+      const applicationData = {
+        id: "app_" + Date.now() + "_" + Math.random().toString(36).substr(2, 9),
         type: currentApplyType,
-        def: def,
         values: values,
         submittedAt: formatDate(now) + " " + formatClock(now),
         canceled: false,
         rejected: false,
         approved: false
-      });
-      renderApplications();
+      };
+
+      // メモリ配列に追加（表示用）
+      applicationData.def = def;
+      applications.push(applicationData);
+
+      // Firestoreに保存
+      if (isFirebaseConfigured && db && currentUser && currentUser.uid) {
+        db.collection("users")
+          .doc(currentUser.uid)
+          .collection("applications")
+          .doc(applicationData.id)
+          .set(applicationData)
+          .then(() => {
+            console.log("申請をFirestoreに保存しました。ドキュメントID:", applicationData.id);
+          })
+          .catch((error) => {
+            console.error("申請の保存に失敗:", error);
+          });
+      }
+
       renderApplications();
       closeApplyForm();
+    }
+
+    // ログイン時：Firestoreからユーザーの申請を読み込む
+    function loadUserApplicationsFromFirestore() {
+      if (!isFirebaseConfigured || !db || !currentUser) {
+        console.log("Cannot load applications: Firebase not configured or user not logged in");
+        return;
+      }
+
+      console.log("Loading user applications from Firestore");
+
+      db.collection("users")
+        .doc(currentUser.uid)
+        .collection("applications")
+        .orderBy("submittedAt", "desc")
+        .get()
+        .then((snapshot) => {
+          applications.length = 0; // 配列をクリア
+          snapshot.forEach((doc) => {
+            applications.push({
+              id: doc.id,
+              def: applyDefs[doc.data().type],
+              ...doc.data(),
+            });
+          });
+          console.log("Applications loaded:", applications.length);
+          renderApplications();
+        })
+        .catch((error) => {
+          console.error("申請の読み込みエラー:", error);
+          // エラー時はメモリ配列でレンダリング
+          renderApplications();
+        });
+    }
+
+    // 申請のステータスをFirestoreで更新
+    function updateApplicationStatusInFirestore(appIndex, fieldName, value) {
+      if (!isFirebaseConfigured || !db || !currentUser) {
+        console.log("Cannot update application: Firebase not configured or user not logged in");
+        return;
+      }
+
+      const app = applications[appIndex];
+      if (!app || !app.id) {
+        console.error("Application not found or missing id");
+        return;
+      }
+
+      const updateData = {};
+      updateData[fieldName] = value;
+
+      db.collection("users")
+        .doc(currentUser.uid)
+        .collection("applications")
+        .doc(app.id)
+        .update(updateData)
+        .then(() => {
+          console.log("申請を更新しました:", fieldName, value);
+          // メモリ配列も更新
+          app[fieldName] = value;
+          renderApplications();
+          renderHistory();
+        })
+        .catch((error) => {
+          console.error("申請の更新エラー:", error);
+          alert("申請の更新に失敗しました: " + error.message);
+        });
     }
 
     // 申請履歴を描く
@@ -923,6 +1184,18 @@
       for (let i = 0; i < applications.length; i++) {
         const app = applications[i];
         console.log("app index:", i, "app:", app, "approved:", app.approved, "canceled:", app.canceled, "rejected:", app.rejected);
+
+        // app.defがない場合は applyDefs から取得
+        if (!app.def && app.type && applyDefs[app.type]) {
+          app.def = applyDefs[app.type];
+        }
+
+        // app.defが存在しない場合はスキップ（データが破損している）
+        if (!app.def) {
+          console.warn("申請の定義が見つかりません:", app);
+          continue;
+        }
+
         const box = document.createElement("div");
         let className = "appRecord";
         if (app.canceled) className += " canceled";
@@ -991,9 +1264,7 @@
             rejectCancelBtn.addEventListener("click", (function(idx) {
               return function() {
                 console.log("Reject-cancel clicked for index:", idx);
-                applications[idx].rejected = false;
-                renderApplications();
-                renderHistory();
+                updateApplicationStatusInFirestore(idx, "rejected", false);
               };
             })(i));
             btnWrap.appendChild(rejectCancelBtn);
@@ -1007,9 +1278,7 @@
             restoreBtn.addEventListener("click", (function(idx) {
               return function() {
                 console.log("Restore clicked for index:", idx);
-                applications[idx].canceled = false;
-                renderApplications();
-                renderHistory();
+                updateApplicationStatusInFirestore(idx, "canceled", false);
               };
             })(i));
             btnWrap.appendChild(restoreBtn);
@@ -1024,9 +1293,7 @@
             cancelBtn.addEventListener("click", (function(idx) {
               return function() {
                 console.log("Cancel clicked for index:", idx);
-                applications[idx].canceled = true;
-                renderApplications();
-                renderHistory();
+                updateApplicationStatusInFirestore(idx, "canceled", true);
               };
             })(i));
             btnWrap.appendChild(cancelBtn);
@@ -1048,9 +1315,7 @@
             rejectBtn.addEventListener("click", (function(idx) {
               return function() {
                 console.log("Reject clicked for index:", idx);
-                applications[idx].rejected = true;
-                renderApplications();
-                renderHistory();
+                updateApplicationStatusInFirestore(idx, "rejected", true);
               };
             })(i));
             btnWrap.appendChild(rejectBtn);
@@ -1064,9 +1329,7 @@
             restoreBtn.addEventListener("click", (function(idx) {
               return function() {
                 console.log("Restore clicked for index:", idx);
-                applications[idx].canceled = false;
-                renderApplications();
-                renderHistory();
+                updateApplicationStatusInFirestore(idx, "canceled", false);
               };
             })(i));
             btnWrap.appendChild(restoreBtn);
@@ -1080,9 +1343,7 @@
             rejectCancelBtn.addEventListener("click", (function(idx) {
               return function() {
                 console.log("Reject-cancel clicked for index:", idx);
-                applications[idx].rejected = false;
-                renderApplications();
-                renderHistory();
+                updateApplicationStatusInFirestore(idx, "rejected", false);
               };
             })(i));
             btnWrap.appendChild(rejectCancelBtn);
@@ -1097,10 +1358,11 @@
               btn.className = "appCancel";
             }
             btn.textContent = app.canceled ? "復元" : "申請を取り消す";
-            btn.addEventListener("click", function () {
-              app.canceled = !app.canceled;
-              renderApplications();
-            });
+            btn.addEventListener("click", (function(idx) {
+              return function() {
+                updateApplicationStatusInFirestore(idx, "canceled", !applications[idx].canceled);
+              };
+            })(i));
             btnWrap.appendChild(btn);
           }
         }
@@ -1158,6 +1420,8 @@
               .collection("punches").doc(item.docId)
               .update({ canceled: false })
               .catch((error) => console.error("Firestore更新エラー:", error));
+            // 復元後、本日の有効な打刻からステータスを再計算
+            updateUserStatusFromTodaysPunches(currentUser.uid);
           }
           renderHistory();
         });
@@ -1224,23 +1488,25 @@
         const approveBtn = document.createElement("button");
         approveBtn.style.cssText = "padding: 4px 8px; margin: 0 2px; background: #4caf50; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;";
         approveBtn.textContent = "承認";
-        approveBtn.addEventListener("click", function (e) {
-          e.preventDefault();
-          e.stopPropagation();
-          applications[appIndex].approved = true;
-          renderHistory();
-        });
+        approveBtn.addEventListener("click", (function(idx) {
+          return function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            updateApplicationStatusInFirestore(idx, "approved", true);
+          };
+        })(appIndex));
         row.appendChild(approveBtn);
 
         const rejectBtn = document.createElement("button");
         rejectBtn.style.cssText = "padding: 4px 8px; margin: 0 2px; background: #f44336; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;";
         rejectBtn.textContent = "却下";
-        rejectBtn.addEventListener("click", function (e) {
-          e.preventDefault();
-          e.stopPropagation();
-          applications[appIndex].canceled = true;
-          renderHistory();
-        });
+        rejectBtn.addEventListener("click", (function(idx) {
+          return function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            updateApplicationStatusInFirestore(idx, "canceled", true);
+          };
+        })(appIndex));
         row.appendChild(rejectBtn);
       }
 
@@ -1269,11 +1535,13 @@
     }
 
     function renderHistory() {
+      console.log("renderHistory called. page:", page, "devMode:", devMode, "history.length:", history.length);
       if (page === 2 && !devMode) { page = 1; }
 
       // ビュー表示制御
       homeView.classList.toggle("hide", page === 3);
       document.getElementById("reportView").style.display = page === 3 ? "block" : "none";
+      console.log("After page check. page:", page);
 
       // レポートボタンのテキスト変更
       const reportBtnTop = document.getElementById("reportBtnTop");
@@ -1285,17 +1553,15 @@
       }  // レポートページの場合はここで終了
 
       if (page === 0) { histTitle.textContent = "本日の打刻"; pageBtn.textContent = "全履歴 ▶"; }
-      else if (page === 1) { histTitle.textContent = "全履歴"; pageBtn.textContent = devMode ? "完全履歴 ▶" : "◀ 本日"; }
-      else { histTitle.textContent = "完全履歴（監査ログ）"; pageBtn.textContent = "◀ 本日"; }
+      else if (page === 1) { histTitle.textContent = "全履歴"; pageBtn.textContent = devMode ? "監査ログ ▶" : "◀ 本日"; }
+      else { histTitle.textContent = "監査ログ"; pageBtn.textContent = "◀ 本日"; }
       records.innerHTML = "";
       if (page === 2) {
         if (history.length === 0 && deletedLog.length === 0) { records.innerHTML = '<div class="empty">記録がありません</div>'; return; }
 
-        // 監査ログ
-        const auditHead = document.createElement("div");
-        auditHead.style.cssText = "font-weight: bold; padding: 12px 0 8px; border-top: 2px solid #ddd; margin-top: 12px;";
-        auditHead.textContent = "監査ログ";
-        records.appendChild(auditHead);
+        // 監査ログを表示
+        records.style.borderTop = "2px solid #ddd";
+        records.style.marginTop = "0";
         for (let i = 0; i < history.length; i++) { records.appendChild(makeAuditItem(history[i], false)); }
         for (let i = 0; i < deletedLog.length; i++) { records.appendChild(makeAuditItem(deletedLog[i], true)); }
 
@@ -1304,8 +1570,13 @@
       if (history.length === 0) { records.innerHTML = '<div class="empty">まだ打刻がありません</div>'; updateStatusBar(); return; }
       if (page === 0) {
         const today = businessDay(getNow());
+        console.log("Page 0 - Filtering by today:", today);
         let count = 0;
-        for (let i = 0; i < history.length; i++) { if (history[i].day === today) { records.appendChild(makeRow(history[i], i)); count++; } }
+        for (let i = 0; i < history.length; i++) {
+          console.log(`history[${i}].day: "${history[i].day}" vs today: "${today}" - match: ${history[i].day === today}`);
+          if (history[i].day === today) { records.appendChild(makeRow(history[i], i)); count++; }
+        }
+        console.log("Found", count, "punches for today");
         if (count === 0) { records.innerHTML = '<div class="empty">本日の打刻はまだありません</div>'; }
       } else {
         // 全履歴は新しい順に表示（逆順ループ）
@@ -1387,6 +1658,7 @@
     }
 
     function showArea(which) {
+      punchConfirmArea.style.display = (which === "punch_confirm") ? "block" : "none";
       confirmArea.style.display = (which === "confirm") ? "block" : "none";
       timeInputArea.classList.toggle("show", which === "time");
       deleteArea.classList.toggle("show", which === "delete");
@@ -1634,7 +1906,6 @@
       prevValue.textContent = prev ? (displayName(prev.type) + " " + prev.time) : "なし";
       nowValue.textContent = displayName(pendingPunch.type) + " " + pendingPunch.time;
       setUIState(UIState.PUNCH_CONFIRM, { pendingPunch: pendingPunch });
-      showArea("confirm");
       const conflict = checkConflict(type);
       if (conflict === null) { showNormalMode(); } else { showConflictMode(conflict); }
     }
@@ -1672,19 +1943,43 @@
     }
 
     function savePunchToFirestore(type, time, day) {
+      console.log("savePunchToFirestore called:", { type, time, day, isFirebaseConfigured, hasCurrentUser: !!currentUser, hasDb: !!db });
       // Firestore未設定またはログインしていない場合はスキップ
       if (!isFirebaseConfigured || !currentUser || !db) {
+        console.log("Skipping Firestore save: Firebase not configured or user/db missing");
         return Promise.resolve();
       }
 
+      console.log("Saving punch to Firestore for user:", currentUser.uid);
       const timestamp = getNow();
+
+      // ステータスを打刻タイプから決定
+      const statusMap = {
+        "出勤": "勤務中",
+        "外出": "外出中",
+        "戻り": "勤務中",
+        "退勤": "退勤済み"
+      };
+      const newStatus = statusMap[type] || "未出勤";
+
       return db.collection("users").doc(currentUser.uid)
         .collection("punches").add({
           type: type,
           time: time,
-          date: day,
+          day: day,
           timestamp: firebase.firestore.Timestamp.fromDate(timestamp),
           createdAt: firebase.firestore.Timestamp.fromDate(timestamp)
+        })
+        .then((docRef) => {
+          console.log("パンチを Firestore に保存しました:", docRef.id);
+          // ユーザードキュメントのステータスも更新
+          return db.collection("users").doc(currentUser.uid).update({
+            status: newStatus,
+            statusTime: firebase.firestore.Timestamp.fromDate(timestamp)
+          });
+        })
+        .then(() => {
+          console.log("ユーザーステータスを更新しました:", newStatus);
         })
         .catch((error) => {
           console.error("Firestore保存エラー:", error);
@@ -1695,13 +1990,87 @@
         });
     }
 
+    // 本日の有効な打刻からユーザーステータスを再計算・更新
+    function updateUserStatusFromTodaysPunches(uid) {
+      if (!isFirebaseConfigured || !db) {
+        console.log("Firebase not configured, skipping status update");
+        return;
+      }
+
+      const today = businessDay(getNow());
+      console.log(`updateUserStatusFromTodaysPunches called for uid: ${uid}, today: ${today}`);
+
+      // 本日の有効な（取り消されていない）打刻を取得
+      db.collection("users").doc(uid)
+        .collection("punches")
+        .where("day", "==", today)
+        .get()
+        .then((snapshot) => {
+          const todayPunches = snapshot.docs
+            .map(doc => ({ id: doc.id, ...doc.data() }))
+            .filter(p => !p.canceled); // 取り消されていないもののみ
+
+          console.log(`Today's valid punches for ${uid}:`, todayPunches);
+
+          // 有効な打刻がない場合は「未出勤」
+          if (todayPunches.length === 0) {
+            console.log(`No valid punches, setting status to 未出勤`);
+            return db.collection("users").doc(uid).update({
+              status: "未出勤",
+              statusTime: firebase.firestore.Timestamp.fromDate(getNow())
+            });
+          }
+
+          // 時系列順にソート
+          todayPunches.sort((a, b) => {
+            const timeA = a.time ? parseInt(a.time.replace(/:/g, '')) : 0;
+            const timeB = b.time ? parseInt(b.time.replace(/:/g, '')) : 0;
+            return timeA - timeB;
+          });
+
+          // 最後の打刻から状態を決定
+          const lastPunch = todayPunches[todayPunches.length - 1];
+          const statusMap = {
+            "出勤": "勤務中",
+            "外出": "外出中",
+            "戻り": "勤務中",
+            "退勤": "退勤済み"
+          };
+          const newStatus = statusMap[lastPunch.type] || "未出勤";
+
+          console.log(`Last punch type: ${lastPunch.type}, new status: ${newStatus}`);
+
+          return db.collection("users").doc(uid).update({
+            status: newStatus,
+            statusTime: firebase.firestore.Timestamp.fromDate(getNow())
+          });
+        })
+        .then(() => {
+          console.log(`Status updated for ${uid}`);
+        })
+        .catch((error) => {
+          console.error(`Error updating status for ${uid}:`, error);
+        });
+    }
+
     function confirmPunch() {
-      if (currentUIState !== UIState.PUNCH_CONFIRM || !uiData.pendingPunch) return;
+      console.log("confirmPunch called. currentUIState:", currentUIState, "UIState.PUNCH_CONFIRM:", UIState.PUNCH_CONFIRM, "pendingPunch:", uiData.pendingPunch);
+      if (currentUIState !== UIState.PUNCH_CONFIRM || !uiData.pendingPunch) {
+        console.log("confirmPunch: Condition not met, returning");
+        return;
+      }
       const pending = uiData.pendingPunch;
+      console.log("Creating punch:", pending);
       const item = makePunch(pending.type, pending.time, pending.day, false, false, "作成（" + pending.time + "）");
+      console.log("makePunch result:", item);
       history.push(item);
+      console.log("Punch added to history. history.length:", history.length);
+      console.log("Calling savePunchToFirestore:", { type: pending.type, time: pending.time, day: pending.day });
       savePunchToFirestore(pending.type, pending.time, pending.day);
-      renderHistory(); closeConfirm();
+      console.log("Calling renderHistory()");
+      renderHistory();
+      console.log("Calling closeConfirm()");
+      closeConfirm();
     }
 
     function fixFill() {
@@ -1780,7 +2149,7 @@
     function openDelete(index) {
       deleteIndex = index;
       const item = history[index];
-      delSubText.textContent = "「" + displayName(item.type) + " " + item.time + "」を履歴から完全に消します。この操作は元に戻せません（完全履歴には記録が残ります）。";
+      delSubText.textContent = "「" + displayName(item.type) + " " + item.time + "」を履歴から完全に消します。この操作は元に戻せません（監査ログには記録が残ります）。";
       setUIState(UIState.PUNCH_DELETE, { deletingIndex: index });
     }
 
@@ -1808,9 +2177,9 @@
     const applyBtns = document.querySelectorAll(".applyBtn");
     for (const btn of applyBtns) { btn.addEventListener("click", function () { openApplyForm(btn.dataset.apply); }); }
 
-    // okBtn の設定：通常モード時は非表示、テキストを「承認」に変更
+    // okBtn の設定
     okBtn.textContent = "承認する";
-    okBtn.style.display = devMode ? "block" : "none";
+    okBtn.style.display = "block";
     okBtn.addEventListener("click", confirmPunch);
 
     cancelBtn.addEventListener("click", closeConfirm);
@@ -1888,6 +2257,68 @@
       renderHistory();
     });
 
+    adminBtnTop.addEventListener("click", function () {
+      console.log("Admin button clicked. isAdmin:", isAdmin);
+      setUIState(UIState.ADMIN);
+      // 管理者画面を表示するときに全ユーザーデータを読み込み
+      loadAllUsersData();
+    });
+
+    adminCloseBtn.addEventListener("click", function () {
+      setUIState(UIState.HOME);
+      renderHistory();
+    });
+
+    profileForm.addEventListener("submit", function (e) {
+      e.preventDefault();
+      if (!profileName.value || !profileEmployeeId.value || !profileDepartment.value) {
+        alert("すべてのフィールドを入力してください");
+        return;
+      }
+      saveProfileToFirestore();
+    });
+
+    profileSkipBtn.addEventListener("click", function () {
+      profileSettingOverlay.classList.remove("show");
+    });
+
+    // 管理者画面のタブ切り替え
+    const adminTabBtns = document.querySelectorAll(".adminTabBtn");
+    const adminTabs = document.querySelectorAll(".adminTab");
+
+    adminTabBtns.forEach((btn) => {
+      btn.addEventListener("click", function () {
+        const tabName = this.dataset.tab;
+
+        // すべてのタブボタンをアクティブから外す
+        adminTabBtns.forEach((b) => {
+          b.classList.remove("active");
+          b.style.borderBottomColor = "transparent";
+          b.style.color = "#666";
+        });
+
+        // すべてのタブを非表示にする
+        adminTabs.forEach((tab) => {
+          tab.classList.remove("active");
+          tab.style.display = "none";
+        });
+
+        // クリックされたタブボタンをアクティブにする
+        this.classList.add("active");
+        this.style.borderBottomColor = "#4a3f8f";
+        this.style.color = "#4a3f8f";
+
+        // 対応するタブを表示
+        if (tabName === "status") {
+          document.getElementById("adminStatusTab").classList.add("active");
+          document.getElementById("adminStatusTab").style.display = "block";
+        } else if (tabName === "applications") {
+          document.getElementById("adminApplicationsTab").classList.add("active");
+          document.getElementById("adminApplicationsTab").style.display = "block";
+        }
+      });
+    });
+
     reportBtn.addEventListener("click", function () {
       displayReport();
     });
@@ -1912,6 +2343,11 @@
     });
 
     settingsBtn.addEventListener("click", function () {
+      // プロフィール情報を読み込み
+      settingsName.value = profileName.value;
+      settingsEmployeeId.value = profileEmployeeId.value;
+      settingsDepartment.value = profileDepartment.value;
+
       nameIn.value = names["出勤"]; nameOut.value = names["退勤"];
       nameLeave.value = names["外出"]; nameBack.value = names["戻り"];
       showOvertime.checked = applyOvertime.style.display !== "none";
@@ -1932,6 +2368,44 @@
       renderHistory();
     }
     settingsClose.addEventListener("click", function () { applySettings(); settingsPanel.classList.remove("show"); });
+
+    // プロフィール情報を保存（設定パネルから）
+    settingsSaveProfileBtn.addEventListener("click", function () {
+      if (!settingsName.value || !settingsEmployeeId.value || !settingsDepartment.value) {
+        alert("すべてのフィールドを入力してください");
+        return;
+      }
+
+      // プロフィール情報をコピー
+      profileName.value = settingsName.value;
+      profileEmployeeId.value = settingsEmployeeId.value;
+      profileDepartment.value = settingsDepartment.value;
+
+      // Firestore または ローカルストレージに保存
+      if (currentUser && isFirebaseConfigured && db) {
+        db.collection("users").doc(currentUser.uid).update({
+          name: settingsName.value,
+          employeeId: settingsEmployeeId.value,
+          department: settingsDepartment.value
+        })
+        .then(() => {
+          alert("プロフィール情報を保存しました");
+          // 管理ボタン表示状態を更新
+          const isAdminByDepartment = settingsDepartment.value === "管理部";
+          adminBtnTop.style.display = (isAdmin || isAdminByDepartment) ? "block" : "none";
+        })
+        .catch((error) => console.error("プロフィール保存エラー:", error));
+      } else {
+        // デモモード
+        localStorage.setItem("profile_name", settingsName.value);
+        localStorage.setItem("profile_employeeId", settingsEmployeeId.value);
+        localStorage.setItem("profile_department", settingsDepartment.value);
+        alert("プロフィール情報を保存しました");
+        // 管理ボタン表示状態を更新
+        const isAdminByDepartment = settingsDepartment.value === "管理部";
+        adminBtnTop.style.display = isAdminByDepartment ? "block" : "none";
+      }
+    });
 
     function refreshDevUI() {
       const isDevModeOrManualTime = devMode || timeMode !== TimeMode.REAL;
@@ -1971,7 +2445,6 @@
 
     devEnable.addEventListener("change", function () {
       devMode = devEnable.checked;
-      okBtn.style.display = devMode ? "block" : "none";
       if (!devMode && page === 2) { page = 1; }
       refreshDevUI(); renderHistory();
       renderApplications();
@@ -2042,6 +2515,12 @@
     });
     nightMode.addEventListener("change", function () { renderHistory(); });
 
+    adminMode.addEventListener("change", function () {
+      isAdmin = adminMode.checked;
+      adminBtnTop.style.display = isAdmin ? "block" : "none";
+      renderHistory();
+    });
+
     // ===== 認証処理 =====
     function showLoginView() {
       setUIState(UIState.LOGIN);
@@ -2050,9 +2529,886 @@
     }
 
     function showHomeView() {
+      console.log("showHomeView called");
       setUIState(UIState.HOME);
       userInfo.classList.remove("hidden");
       logoutBtn.classList.remove("hidden");
+      // デモモード時にプロフィール設定をチェック
+      checkAndShowProfileDialog();
+    }
+
+    // 管理者画面用：全ユーザーのデータをリアルタイムで取得
+    let allUsersUnsubscribe = null;
+    let allPunchesUnsubscribers = {}; // 各ユーザーのパンチリスナー: {uid: unsubscribe}
+    let punchesListenerInitialized = {}; // 各ユーザーのリスナー初期化完了フラグ: {uid: true}
+    let allApplicationsData = {}; // ユーザーごとの申請データ: {uid: [{申請}, ...]}
+
+    // 各ユーザーのパンチをリアルタイムで監視
+    function setupPunchesListener(uid) {
+      // 既存のリスナーがあれば削除
+      if (allPunchesUnsubscribers[uid]) {
+        allPunchesUnsubscribers[uid]();
+      }
+
+      console.log(`Setting up punches listener for uid: ${uid}`);
+
+      const today = businessDay(getNow());
+      allPunchesUnsubscribers[uid] = db.collection("users")
+        .doc(uid)
+        .collection("punches")
+        .where("day", "==", today)
+        .onSnapshot(
+          (snapshot) => {
+            console.log(`Punches updated for ${uid}:`, snapshot.size, "documents");
+            if (allUsersData[uid]) {
+              const today = businessDay(getNow());
+              const todayPunches = snapshot.docs.map((doc) => ({
+                id: doc.id,
+                ...doc.data(),
+              }));
+
+              // 本日以前の打刻を保持しつつ、本日のみ更新
+              if (!allUsersData[uid].punches) {
+                allUsersData[uid].punches = [];
+              }
+              const otherDayPunches = allUsersData[uid].punches.filter(p => p.day !== today);
+              allUsersData[uid].punches = [...otherDayPunches, ...todayPunches];
+
+              // 最初の発火で初期化フラグをセット
+              if (!punchesListenerInitialized[uid]) {
+                punchesListenerInitialized[uid] = true;
+                console.log(`Listener initialized for ${uid}. Checking if all initialized...`);
+                checkAllListenersInitialized();
+              } else {
+                // 2回目以降はリアルタイム更新として表示
+                renderAdminStatusView();
+              }
+            }
+          },
+          (error) => {
+            console.error(`Punches listener error for ${uid}:`, error);
+          }
+        );
+    }
+
+    // すべてのリスナーが初期化されたかチェック
+    function checkAllListenersInitialized() {
+      const allUserIds = Object.keys(allUsersData);
+      const allInitialized = allUserIds.every(uid => punchesListenerInitialized[uid]);
+
+      console.log(`Checking listeners: ${JSON.stringify(Object.keys(punchesListenerInitialized))} vs ${JSON.stringify(allUserIds)}`);
+      console.log(`All initialized: ${allInitialized}`);
+
+      if (allInitialized) {
+        console.log("All listeners initialized! Rendering admin view.");
+        renderAdminStatusView();
+      }
+    }
+
+    function loadAllUsersData() {
+      console.log("loadAllUsersData called. isFirebaseConfigured:", isFirebaseConfigured, "isAdmin:", isAdmin);
+      if (!isFirebaseConfigured || !db || !isAdmin) {
+        console.log("Cannot load users data: Firebase not configured or user is not admin. Showing demo data.");
+        // デモモード時は現在のユーザーのデータだけ表示
+        if (!isFirebaseConfigured) {
+          allUsersData = {
+            [currentUser?.uid || "demo"]: {
+              uid: currentUser?.uid || "demo",
+              name: currentUser?.displayName || "デモユーザー",
+              email: currentUser?.email || "demo@example.com",
+              department: profileDepartment.value || "-",
+              employeeId: profileEmployeeId.value || "-"
+            }
+          };
+          allApplicationsData = {
+            [currentUser?.uid || "demo"]: applications
+          };
+          renderAdminStatusView();
+          renderAdminApplicationsView();
+        }
+        return;
+      }
+
+      console.log("Loading all users data from Firestore");
+
+      // 既存のリスナーがあれば削除
+      if (allUsersUnsubscribe) {
+        allUsersUnsubscribe();
+      }
+
+      // 既存のパンチリスナーをすべて削除
+      for (const uid in allPunchesUnsubscribers) {
+        allPunchesUnsubscribers[uid]();
+      }
+      allPunchesUnsubscribers = {};
+      punchesListenerInitialized = {}; // 初期化フラグもリセット
+
+      // 全ユーザーのデータをリアルタイムで監視
+      allUsersUnsubscribe = db.collection("users").onSnapshot(
+        async (snapshot) => {
+          console.log("Users snapshot received:", snapshot.size, "documents");
+          allUsersData = {};
+          const userIds = [];
+
+          snapshot.forEach((doc) => {
+            allUsersData[doc.id] = { uid: doc.id, ...doc.data() };
+            userIds.push(doc.id);
+          });
+
+          console.log("All users data loaded:", Object.keys(allUsersData));
+
+          // 全ユーザーのパンチと申請を読み込む
+          allApplicationsData = {};
+          let allPunchesData = {}; // ユーザーごとのパンチデータ
+
+          console.log("Starting to load applications and punches. userIds:", userIds);
+
+          for (const uid of userIds) {
+            console.log(`Processing uid: ${uid}`);
+            try {
+              // 申請を読み込む（一度だけ）
+              const applicationsSnapshot = await db
+                .collection("users")
+                .doc(uid)
+                .collection("applications")
+                .orderBy("submittedAt", "desc")
+                .get();
+
+              allApplicationsData[uid] = applicationsSnapshot.docs.map((doc) => ({
+                id: doc.id,
+                ...doc.data(),
+              }));
+              console.log(`申請読み込み完了 (uid: ${uid}):`, allApplicationsData[uid].length, "件");
+
+              // パンチはリアルタイムで監視
+              setupPunchesListener(uid);
+            } catch (error) {
+              console.error(`申請読み込みエラー (uid: ${uid}):`, error);
+              allApplicationsData[uid] = [];
+            }
+          }
+
+          console.log("All users data updated:", Object.keys(allUsersData).length, "users");
+          console.log("All applications data:", allApplicationsData);
+
+          // リスナーが設定されたら、すべての初期化を待つ
+          checkAllListenersInitialized();
+          renderAdminApplicationsView();
+        },
+        (error) => {
+          console.error("全ユーザーデータ取得エラー:", error);
+        }
+      );
+    }
+
+    // 管理者画面：本日の勤務状況を表示
+    function renderAdminStatusView() {
+      console.log("renderAdminStatusView called");
+      const statusList = document.getElementById("adminStatusList");
+      if (!statusList) {
+        console.error("adminStatusList element not found!");
+        return;
+      }
+
+      const today = businessDay(getNow());
+      const users = Object.values(allUsersData);
+      console.log("adminStatusView - users count:", users.length, "allUsersData:", allUsersData);
+
+      if (users.length === 0) {
+        console.log("No users found");
+        statusList.innerHTML = '<div style="padding: 20px; text-align: center; color: #aaa;">ユーザーがいません</div>';
+        return;
+      }
+
+      // 勤務情報を取得
+      const userStatuses = users.map((user) => {
+        let status = user.status || "未出勤";
+        let workingHours = "-";
+
+        console.log(`Processing user ${user.uid}:`, {
+          name: user.name,
+          status: user.status
+        });
+
+        return {
+          uid: user.uid,
+          name: user.name || user.displayName || "未設定",
+          employeeId: user.employeeId || "-",
+          department: user.department || "-",
+          status: status,
+          workingHours: workingHours
+        };
+      });
+
+      // テーブルを生成
+      let html = `
+        <div style="overflow-x: auto;">
+          <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+            <thead>
+              <tr style="background: #f5f5f5; border-bottom: 2px solid #ddd;">
+                <th style="padding: 10px; text-align: left; border-right: 1px solid #eee;">名前</th>
+                <th style="padding: 10px; text-align: left; border-right: 1px solid #eee;">社員番号</th>
+                <th style="padding: 10px; text-align: left; border-right: 1px solid #eee;">所属</th>
+                <th style="padding: 10px; text-align: left; border-right: 1px solid #eee;">状態</th>
+                <th style="padding: 10px; text-align: left;">勤務時間</th>
+              </tr>
+            </thead>
+            <tbody>
+      `;
+
+      userStatuses.forEach((user) => {
+        // ステータスに応じて色を決定
+        let statusColor = "#e0e0e0"; // デフォルト（未出勤：赤）
+        let textColor = "#fff";
+
+        if (user.status === "勤務中") {
+          statusColor = "#2e9e5b"; // 緑
+          textColor = "#fff";
+        } else if (user.status === "外出中") {
+          statusColor = "#f9a825"; // 黄色
+          textColor = "#333";
+        } else if (user.status === "退勤済み") {
+          statusColor = "#9b59b6"; // 紫
+          textColor = "#fff";
+        } else if (user.status === "未出勤") {
+          statusColor = "#e74c3c"; // 赤
+          textColor = "#fff";
+        }
+
+        html += `
+          <tr style="border-bottom: 1px solid #eee;">
+            <td style="padding: 10px; border-right: 1px solid #eee;">${user.name}</td>
+            <td style="padding: 10px; border-right: 1px solid #eee;">${user.employeeId}</td>
+            <td style="padding: 10px; border-right: 1px solid #eee;">${user.department}</td>
+            <td style="padding: 10px; border-right: 1px solid #eee;">
+              <span style="font-size: 11px; padding: 4px 8px; border-radius: 4px; background: ${statusColor}; color: ${textColor}; font-weight: bold;">${user.status}</span>
+            </td>
+            <td style="padding: 10px;">${user.workingHours}</td>
+          </tr>
+        `;
+      });
+
+      html += `
+            </tbody>
+          </table>
+        </div>
+      `;
+
+      statusList.innerHTML = html;
+    }
+
+    // 管理者画面：未承認申請の数をカウント
+    function countPendingApplications() {
+      let pendingCount = 0;
+      for (const uid in allApplicationsData) {
+        const userApps = allApplicationsData[uid];
+        userApps.forEach((app) => {
+          if (!app.approved && !app.rejected) {
+            pendingCount++;
+          }
+        });
+      }
+      for (const uid in allUsersData) {
+        const user = allUsersData[uid];
+        if (user.punches) {
+          user.punches.forEach((punch) => {
+            if (punch.pending && !punch.canceled) {
+              pendingCount++;
+            }
+          });
+        }
+      }
+      return pendingCount;
+    }
+
+    // 管理者画面：タブのバッジを更新
+    function updateAdminTabBadge() {
+      const pendingCount = countPendingApplications();
+      const adminTab2 = document.getElementById("adminTab2");
+      if (adminTab2) {
+        // 既存のバッジを削除
+        const existingBadge = adminTab2.querySelector(".adminTabBadge");
+        if (existingBadge) {
+          existingBadge.remove();
+        }
+
+        // 未承認申請がある場合のみバッジを表示
+        if (pendingCount > 0) {
+          const badge = document.createElement("span");
+          badge.className = "adminTabBadge";
+          badge.textContent = pendingCount;
+          badge.style.cssText = "background: #c0392b; color: white; border-radius: 50%; width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; margin-left: 6px;";
+          adminTab2.appendChild(badge);
+        }
+      }
+    }
+
+    // 管理者画面：未承認申請タブを自動で開く
+    function switchToPendingApplicationsTab() {
+      const pendingCount = countPendingApplications();
+      if (pendingCount > 0) {
+        const adminTab1 = document.getElementById("adminTab1");
+        const adminTab2 = document.getElementById("adminTab2");
+        const adminApplicationsTab = document.getElementById("adminApplicationsTab");
+        const adminStatusTab = document.getElementById("adminStatusTab");
+
+        if (adminTab1 && adminTab2 && adminApplicationsTab && adminStatusTab) {
+          // タブのアクティブ状態を切り替え
+          adminTab1.classList.remove("active");
+          adminTab2.classList.add("active");
+
+          // ボーダーのスタイルを更新
+          adminTab1.style.borderBottomColor = "transparent";
+          adminTab1.style.color = "#666";
+          adminTab2.style.borderBottomColor = "#4a3f8f";
+          adminTab2.style.color = "#4a3f8f";
+
+          // コンテンツを切り替え
+          adminStatusTab.style.display = "none";
+          adminApplicationsTab.style.display = "block";
+        }
+      }
+    }
+
+    // 管理者画面：未承認申請と打刻修正を表示
+    function renderAdminApplicationsView() {
+      console.log("renderAdminApplicationsView called");
+      const applicationsList = document.getElementById("adminApplicationsList");
+      if (!applicationsList) {
+        console.error("adminApplicationsList element not found!");
+        return;
+      }
+
+      console.log("allApplicationsData:", allApplicationsData);
+
+      // 全ユーザーの未承認申請を収集
+      const pendingApps = [];
+      for (const uid in allApplicationsData) {
+        const userApps = allApplicationsData[uid];
+        console.log(`User ${uid} applications:`, userApps);
+        userApps.forEach((app) => {
+          if (!app.approved && !app.rejected) {
+            pendingApps.push({
+              uid: uid,
+              docId: app.id,
+              type: "application",
+              ...app,
+            });
+          }
+        });
+      }
+
+      // 全ユーザーの打刻修正（pending: true）を収集
+      for (const uid in allUsersData) {
+        const user = allUsersData[uid];
+        if (user.punches) {
+          user.punches.forEach((punch) => {
+            if (punch.pending && !punch.canceled) {
+              pendingApps.push({
+                uid: uid,
+                docId: punch.id,
+                type: "punch_edit",
+                punchType: punch.type,
+                punchTime: punch.time,
+                punchDay: punch.day,
+                submittedAt: punch.day // 日付を使用
+              });
+            }
+          });
+        }
+      }
+
+      console.log("Pending applications:", pendingApps);
+
+      // 承認・却下済みを別途収集
+      const completedApps = [];
+      for (const uid in allApplicationsData) {
+        const userApps = allApplicationsData[uid];
+        userApps.forEach((app) => {
+          if (app.approved || app.rejected) {
+            completedApps.push({
+              uid: uid,
+              docId: app.id,
+              type: "application",
+              ...app,
+            });
+          }
+        });
+      }
+
+      // 打刻修正の承認・却下済み
+      for (const uid in allUsersData) {
+        const user = allUsersData[uid];
+        if (user.punches) {
+          user.punches.forEach((punch) => {
+            if (!punch.pending && (punch.approvedBy || punch.rejectedBy)) {
+              completedApps.push({
+                uid: uid,
+                docId: punch.id,
+                type: "punch_edit",
+                punchType: punch.type,
+                punchTime: punch.time,
+                punchDay: punch.day,
+                submittedAt: punch.punchDay || punch.day,
+                ...punch
+              });
+            }
+          });
+        }
+      }
+
+      // 提出日時でソート（新しい順）
+      pendingApps.sort((a, b) => {
+        const dateA = new Date(a.submittedAt.replace(/\//g, "-"));
+        const dateB = new Date(b.submittedAt.replace(/\//g, "-"));
+        return dateB - dateA;
+      });
+      completedApps.sort((a, b) => {
+        const dateA = new Date(a.submittedAt.replace(/\//g, "-"));
+        const dateB = new Date(b.submittedAt.replace(/\//g, "-"));
+        return dateB - dateA;
+      });
+
+      // ===== 未承認申請セクション =====
+      let html = '<div style="margin-bottom: 30px;">';
+      html += '<h3 style="margin-bottom: 15px; color: #333;">未承認申請・修正</h3>';
+
+      if (pendingApps.length === 0) {
+        html += '<div style="padding: 20px; text-align: center; color: #aaa;">未承認申請はありません</div>';
+      } else {
+        html += `
+          <div style="overflow-x: auto;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+              <thead>
+                <tr style="background: #f5f5f5; border-bottom: 2px solid #ddd;">
+                  <th style="padding: 10px; text-align: left; border-right: 1px solid #eee;">申請者</th>
+                  <th style="padding: 10px; text-align: left; border-right: 1px solid #eee;">申請種類</th>
+                  <th style="padding: 10px; text-align: left; border-right: 1px solid #eee;">提出日時</th>
+                  <th style="padding: 10px; text-align: left;">アクション</th>
+                </tr>
+              </thead>
+              <tbody>
+        `;
+
+        pendingApps.forEach((app) => {
+          const applicant = allUsersData[app.uid];
+          const applicantName = applicant ? applicant.name || applicant.displayName || "不明" : "不明";
+
+          let typeTitle = "不明";
+          let detailLines = [];
+          if (app.type === "punch_edit") {
+            typeTitle = "打刻修正";
+            detailLines.push(`${app.punchDay} ${app.punchType}（${app.punchTime}）`);
+          } else {
+            const def = applyDefs[app.type];
+            typeTitle = def ? def.title : "不明な申請";
+            if (def && app.values) {
+              for (const field of def.fields) {
+                const val = app.values[field.key];
+                if (val && val !== "") {
+                  detailLines.push(`${field.label}：${val}`);
+                }
+              }
+            }
+          }
+
+          console.log("Creating button for app:", { uid: app.uid, docId: app.docId, type: app.type });
+
+          const detailHtml = detailLines.map(line => {
+            const [label, value] = line.split("：");
+            const wrappedValue = wrapText(value, 50);
+            return `<div style="font-size: 12px; color: #666; margin-top: 4px;">${label}：<br><span style="margin-left: 12px; display: inline-block;">${wrappedValue}</span></div>`;
+          }).join("");
+
+          html += `
+            <tr style="border-bottom: 1px solid #eee;">
+              <td style="padding: 10px; border-right: 1px solid #eee;">${applicantName}</td>
+              <td style="padding: 10px; border-right: 1px solid #eee;">
+                ${typeTitle}
+                ${detailHtml}
+              </td>
+              <td style="padding: 10px; border-right: 1px solid #eee; font-size: 12px;">${app.submittedAt}</td>
+              <td style="padding: 10px;">
+                <button onclick="showAdminDecisionDialog('${app.uid}', '${app.docId}', '${app.type}', true)" style="padding: 4px 8px; background: #2e9e5b; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 11px; margin-right: 4px; font-weight: bold;">承認</button>
+                <button onclick="showAdminDecisionDialog('${app.uid}', '${app.docId}', '${app.type}', false)" style="padding: 4px 8px; background: #c0392b; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: bold;">却下</button>
+              </td>
+            </tr>
+          `;
+        });
+
+        html += `
+              </tbody>
+            </table>
+          </div>
+        `;
+      }
+      html += '</div>';
+
+      // ===== 承認・却下済みセクション =====
+      html += '<div>';
+      html += '<h3 style="margin-bottom: 15px; color: #333;">承認・却下済み</h3>';
+
+      if (completedApps.length === 0) {
+        html += '<div style="padding: 20px; text-align: center; color: #aaa;">承認・却下済み申請はありません</div>';
+      } else {
+        html += `
+          <div style="overflow-x: auto;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+              <thead>
+                <tr style="background: #f5f5f5; border-bottom: 2px solid #ddd;">
+                  <th style="padding: 10px; text-align: left; border-right: 1px solid #eee;">申請者</th>
+                  <th style="padding: 10px; text-align: left; border-right: 1px solid #eee;">申請種類</th>
+                  <th style="padding: 10px; text-align: left; border-right: 1px solid #eee;">決定</th>
+                  <th style="padding: 10px; text-align: left; border-right: 1px solid #eee;">決定者</th>
+                  <th style="padding: 10px; text-align: left;">決定日時</th>
+                </tr>
+              </thead>
+              <tbody>
+        `;
+
+        completedApps.forEach((app) => {
+          const applicant = allUsersData[app.uid];
+          const applicantName = applicant ? applicant.name || applicant.displayName || "不明" : "不明";
+
+          let typeTitle = "不明";
+          let detailLines = [];
+          if (app.type === "punch_edit") {
+            typeTitle = "打刻修正";
+            detailLines.push(`${app.punchDay} ${app.punchType}（${app.punchTime}）`);
+          } else {
+            const def = applyDefs[app.type];
+            typeTitle = def ? def.title : "不明な申請";
+            if (def && app.values) {
+              for (const field of def.fields) {
+                const val = app.values[field.key];
+                if (val && val !== "") {
+                  detailLines.push(`${field.label}：${val}`);
+                }
+              }
+            }
+          }
+
+          const isApproved = app.approvedBy;
+          const statusText = isApproved ? "✓ 承認" : "✕ 却下";
+          const statusColor = isApproved ? "#4caf50" : "#c0392b";
+          const decisionerName = isApproved ? app.approvedByName : app.rejectedByName;
+          const decisionTimestamp = isApproved ? app.approvedAt : app.rejectedAt;
+          const formattedTime = formatDecisionTime(decisionTimestamp);
+
+          const detailHtml = detailLines.map(line => {
+            const [label, value] = line.split("：");
+            const wrappedValue = wrapText(value, 50);
+            return `<div style="font-size: 12px; color: #666; margin-top: 4px;">${label}：<br><span style="margin-left: 12px; display: inline-block;">${wrappedValue}</span></div>`;
+          }).join("");
+
+          html += `
+            <tr style="border-bottom: 1px solid #eee; background: #f9f9f9;">
+              <td style="padding: 10px; border-right: 1px solid #eee;">${applicantName}</td>
+              <td style="padding: 10px; border-right: 1px solid #eee;">
+                ${typeTitle}
+                ${detailHtml}
+              </td>
+              <td style="padding: 10px; border-right: 1px solid #eee;">
+                <span style="padding: 2px 6px; background: ${statusColor}; color: white; border-radius: 3px; font-size: 11px; display: inline-block;">
+                  ${statusText}
+                </span>
+              </td>
+              <td style="padding: 10px; border-right: 1px solid #eee; font-size: 12px;">${decisionerName || "-"}</td>
+              <td style="padding: 10px; font-size: 12px;">${formattedTime}</td>
+            </tr>
+          `;
+        });
+
+        html += `
+              </tbody>
+            </table>
+          </div>
+        `;
+      }
+      html += '</div>';
+
+      applicationsList.innerHTML = html;
+
+      // バッジを更新して、必要に応じてタブを切り替え
+      updateAdminTabBadge();
+      switchToPendingApplicationsTab();
+    }
+
+    // 管理者画面から申請を承認
+    // 確認ダイアログ用の一時データ
+    let adminDecisionData = { uid: null, docId: null, itemType: null, isApprove: false };
+    let adminDialogShowing = false;
+
+    // 管理者画面：承認・却下確認ダイアログ（固定配置版）
+    function showAdminDecisionDialog(uid, docId, itemType, isApprove) {
+      console.log("showAdminDecisionDialog called:", { uid, docId, itemType, isApprove });
+
+      const applicant = allUsersData[uid];
+      const applicantName = applicant ? applicant.name || applicant.displayName || "不明" : "不明";
+
+      let typeTitle = "不明";
+      if (itemType === "punch_edit") {
+        typeTitle = "打刻修正";
+      } else {
+        typeTitle = applyDefs[itemType] ? applyDefs[itemType].title : "不明な申請";
+      }
+
+      const actionText = isApprove ? "承認" : "却下";
+      const message = `${applicantName}さんの「${typeTitle}」を${actionText}します`;
+
+      // グローバル変数に保存
+      adminDecisionData = { uid, docId, itemType, isApprove };
+
+      // ダイアログ要素を取得して更新
+      const dialog = document.getElementById("adminDecisionDialog");
+      const messageEl = document.getElementById("adminDialogMessage");
+      const okBtn = document.getElementById("adminDialogOk");
+
+      console.log("Elements found:", { dialog, messageEl, okBtn });
+
+      if (!dialog || !messageEl || !okBtn) {
+        console.error("Dialog elements not found!");
+        return;
+      }
+
+      messageEl.textContent = message;
+      okBtn.textContent = actionText + "する";
+
+      console.log("Dialog content set, displaying...");
+
+      // ダイアログを表示（背景も一緒に）
+      overlay.classList.add("show");
+      dialog.style.display = "block"; // インラインスタイルを上書き
+      dialog.classList.add("show");
+      console.log("Dialog displayed");
+    }
+
+    // 承認・却下確認ダイアログのボタンから呼ばれる統合関数
+    function executeAdminDecisionFinal() {
+      const { uid, docId, itemType, isApprove } = adminDecisionData;
+      console.log("executeAdminDecisionFinal called:", { uid, docId, itemType, isApprove });
+      closeAdminDialog();
+      if (isApprove) {
+        executeAdminApprove(uid, docId, itemType);
+      } else {
+        executeAdminReject(uid, docId, itemType);
+      }
+    }
+
+    // ダイアログを閉じる
+    function closeAdminDialog() {
+      const dialog = document.getElementById("adminDecisionDialog");
+      dialog.style.display = "none"; // インラインスタイルを戻す
+      dialog.classList.remove("show");
+      overlay.classList.remove("show");
+    }
+
+    // 管理者ダイアログボタンのイベントリスナーを初期化
+    function initAdminDialogButtons() {
+      const cancelBtn = document.getElementById("adminDialogCancel");
+      const okBtn = document.getElementById("adminDialogOk");
+
+      if (cancelBtn) {
+        cancelBtn.addEventListener("click", closeAdminDialog);
+      }
+
+      if (okBtn) {
+        okBtn.addEventListener("click", executeAdminDecisionFinal);
+      }
+
+      console.log("Admin dialog buttons initialized");
+    }
+
+    // 承認を実行
+    function executeAdminApprove(uid, docId, itemType) {
+      console.log("executeAdminApprove called:", { uid, docId, itemType });
+      if (!isFirebaseConfigured || !db || !currentUser) {
+        console.error("Firebase not configured or missing");
+        alert("Firestoreが設定されていません");
+        return;
+      }
+
+      const collectionName = itemType === "punch_edit" ? "punches" : "applications";
+      const adminName = currentUser.displayName || currentUser.email || "管理者";
+      const timestamp = firebase.firestore.Timestamp.fromDate(getNow());
+
+      const updateData = itemType === "punch_edit"
+        ? {
+            pending: false,
+            approvedAt: timestamp,
+            approvedBy: currentUser.uid,
+            approvedByName: adminName
+          }
+        : {
+            approved: true,
+            rejected: false,
+            updatedAt: timestamp,
+            approvedAt: timestamp,
+            approvedBy: currentUser.uid,
+            approvedByName: adminName
+          };
+
+      db.collection("users")
+        .doc(uid)
+        .collection(collectionName)
+        .doc(docId)
+        .update(updateData)
+        .then(() => {
+          const msg = itemType === "punch_edit" ? "打刻修正を承認しました" : "申請を承認しました";
+          console.log(msg);
+          console.log("APPROVE: Updating memory for", { uid, docId, itemType });
+
+          // メモリ上のデータを直接更新（リアルタイムリスナーの更新を待つ代わり）
+          if (itemType === "punch_edit") {
+            // 打刻修正の場合：allUsersData内のpunchesを更新
+            if (allUsersData[uid] && allUsersData[uid].punches) {
+              const punch = allUsersData[uid].punches.find(p => p.id === docId);
+              if (punch) {
+                punch.pending = false;
+                punch.approvedAt = new Date().toISOString();
+                punch.approvedBy = currentUser.uid;
+                punch.approvedByName = adminName;
+                console.log("APPROVE: Updated punch", punch);
+              }
+            }
+            updateUserStatusFromTodaysPunches(uid);
+          } else {
+            // 申請の場合：allApplicationsDataを更新
+            if (allApplicationsData[uid]) {
+              const app = allApplicationsData[uid].find(a => a.id === docId);
+              if (app) {
+                console.log("APPROVE: Before update", { approved: app.approved, rejected: app.rejected });
+                app.approved = true;
+                app.rejected = false;
+                app.approvedAt = new Date().toISOString();
+                app.approvedBy = currentUser.uid;
+                app.approvedByName = adminName;
+                console.log("APPROVE: After update", { approved: app.approved, rejected: app.rejected, approvedBy: app.approvedBy });
+              }
+            }
+          }
+
+          closeAdminDialog(); // ホームに戻らず、ダイアログだけ閉じる
+          // 管理者画面のデータを更新
+          renderAdminApplicationsView();
+          renderAdminStatusView();
+        })
+        .catch((error) => {
+          console.error("承認エラー:", error);
+          alert("承認に失敗しました: " + error.message);
+        });
+    }
+
+    // 却下を実行
+    function executeAdminReject(uid, docId, itemType) {
+      console.log("executeAdminReject called:", { uid, docId, itemType });
+      if (!isFirebaseConfigured || !db || !currentUser) {
+        console.error("Firebase not configured or missing");
+        alert("Firestoreが設定されていません");
+        return;
+      }
+
+      const collectionName = itemType === "punch_edit" ? "punches" : "applications";
+      const adminName = currentUser.displayName || currentUser.email || "管理者";
+      const timestamp = firebase.firestore.Timestamp.fromDate(getNow());
+
+      const updateData = itemType === "punch_edit"
+        ? {
+            pending: false,
+            canceled: true,
+            rejectedAt: timestamp,
+            rejectedBy: currentUser.uid,
+            rejectedByName: adminName
+          }
+        : {
+            rejected: true,
+            approved: false,
+            updatedAt: timestamp,
+            rejectedAt: timestamp,
+            rejectedBy: currentUser.uid,
+            rejectedByName: adminName
+          };
+
+      db.collection("users")
+        .doc(uid)
+        .collection(collectionName)
+        .doc(docId)
+        .update(updateData)
+        .then(() => {
+          const msg = itemType === "punch_edit" ? "打刻修正を却下しました" : "申請を却下しました";
+          console.log(msg);
+          console.log("REJECT: Updating memory for", { uid, docId, itemType });
+
+          // メモリ上のデータを直接更新（リアルタイムリスナーの更新を待つ代わり）
+          if (itemType === "punch_edit") {
+            // 打刻修正の場合：allUsersData内のpunchesを更新
+            if (allUsersData[uid] && allUsersData[uid].punches) {
+              const punch = allUsersData[uid].punches.find(p => p.id === docId);
+              if (punch) {
+                punch.pending = false;
+                punch.canceled = true;
+                punch.rejectedAt = new Date().toISOString();
+                punch.rejectedBy = currentUser.uid;
+                punch.rejectedByName = adminName;
+                console.log("REJECT: Updated punch", punch);
+              }
+            }
+            updateUserStatusFromTodaysPunches(uid);
+          } else {
+            // 申請の場合：allApplicationsDataを更新
+            if (allApplicationsData[uid]) {
+              const app = allApplicationsData[uid].find(a => a.id === docId);
+              if (app) {
+                console.log("REJECT: Before update", { approved: app.approved, rejected: app.rejected });
+                app.rejected = true;
+                app.approved = false;
+                app.rejectedAt = new Date().toISOString();
+                app.rejectedBy = currentUser.uid;
+                app.rejectedByName = adminName;
+                console.log("REJECT: After update", { approved: app.approved, rejected: app.rejected, rejectedBy: app.rejectedBy });
+              }
+            }
+          }
+
+          closeAdminDialog(); // ホームに戻らず、ダイアログだけ閉じる
+          // 管理者画面のデータを更新
+          renderAdminApplicationsView();
+          renderAdminStatusView();
+        })
+        .catch((error) => {
+          console.error("却下エラー:", error);
+          alert("却下に失敗しました: " + error.message);
+        });
+    }
+
+    // プロフィール設定をチェックして、未入力の場合はダイアログを表示
+    function checkAndShowProfileDialog() {
+      console.log("checkAndShowProfileDialog called, isFirebaseConfigured:", isFirebaseConfigured);
+
+      if (isFirebaseConfigured) {
+        // Firebase 設定済みの場合は loadAdminFlagFromFirestore で処理される
+        console.log("Firebase configured, returning");
+        return;
+      }
+
+      // デモモード時：ローカルストレージから取得
+      const savedName = localStorage.getItem("profile_name") || "";
+      const savedEmployeeId = localStorage.getItem("profile_employeeId") || "";
+      const savedDepartment = localStorage.getItem("profile_department") || "";
+
+      console.log("Saved profile:", { savedName, savedEmployeeId, savedDepartment });
+
+      profileName.value = savedName;
+      profileEmployeeId.value = savedEmployeeId;
+      profileDepartment.value = savedDepartment;
+
+      // プロフィール情報が未入力の場合は、設定ダイアログを表示
+      if (!savedName || !savedEmployeeId || !savedDepartment) {
+        console.log("Showing profile dialog");
+        showProfileSettingDialog();
+      } else {
+        console.log("Profile complete, no dialog needed");
+      }
     }
 
     function updateUserUI(user) {
@@ -2069,14 +3425,18 @@
 
     // Googleでログイン
     function loginWithGoogle() {
+      console.log("loginWithGoogle called, auth:", !!auth);
       if (!auth) {
         // Firebase未設定の場合、デモユーザーでログイン
+        console.log("Demo mode - creating demo user");
         currentUser = {
           uid: "demo_user_" + Date.now(),
           displayName: "デモユーザー",
           email: "demo@example.com"
         };
         updateUserUI(currentUser);
+        console.log("Calling showHomeView");
+        showHomeView();  // ホーム画面を表示
         return;
       }
       const provider = new firebase.auth.GoogleAuthProvider();
@@ -2130,7 +3490,8 @@
             history.length = 0;
             snapshot.forEach((doc) => {
               const data = doc.data();
-              const item = makePunch(data.type, data.time, data.date, data.pending || false, data.edited || false, "Firestoreから読み込み");
+              // Firestoreから読み込み: day フィールドを使用（date ではなく day）
+              const item = makePunch(data.type, data.time, data.day || data.date, data.pending || false, data.edited || false, "Firestoreから読み込み");
               item.docId = doc.id;
               // Firestoreのフラグがあれば反映
               if (data.canceled !== undefined) {
@@ -2156,6 +3517,88 @@
         );
     }
 
+    // Firestore から管理者フラグを取得
+    function loadAdminFlagFromFirestore(user) {
+      console.log("loadAdminFlagFromFirestore called, user:", user?.email);
+      if (!isFirebaseConfigured || !user || !db) {
+        console.log("Firebase not configured or user/db missing");
+        return;
+      }
+
+      db.collection("users").doc(user.uid).get()
+        .then((doc) => {
+          console.log("Firestore document exists:", doc.exists);
+          if (doc.exists) {
+            const userData = doc.data();
+            isAdmin = userData.isAdmin || false;
+            // プロフィール情報を読み込み
+            profileName.value = userData.name || "";
+            profileEmployeeId.value = userData.employeeId || "";
+            profileDepartment.value = userData.department || "";
+            console.log("Loaded profile from Firestore:", { name: profileName.value, employeeId: profileEmployeeId.value, department: profileDepartment.value });
+          } else {
+            // ユーザードキュメントが存在しない場合は、新規作成（管理者フラグなし）
+            console.log("Creating new user document");
+            db.collection("users").doc(user.uid).set({
+              email: user.email,
+              displayName: user.displayName || "ユーザー",
+              isAdmin: false,
+              name: user.displayName || "",
+              employeeId: "",
+              department: "",
+              createdAt: firebase.firestore.Timestamp.now()
+            }).catch((error) => console.error("ユーザードキュメント作成エラー:", error));
+            isAdmin = false;
+            profileName.value = user.displayName || "";
+            profileEmployeeId.value = "";
+            profileDepartment.value = "";
+          }
+          // 管理者ボタンの表示/非表示を制御（所属が管理部 または isAdmin フラグ）
+          const isAdminByDepartment = profileDepartment.value === "管理部";
+          adminBtnTop.style.display = (isAdmin || isAdminByDepartment) ? "block" : "none";
+          // プロフィール情報が未入力の場合は、設定ダイアログを表示
+          console.log("Checking profile completeness:", { name: !!profileName.value, employeeId: !!profileEmployeeId.value, department: !!profileDepartment.value });
+          if (!profileName.value || !profileEmployeeId.value || !profileDepartment.value) {
+            console.log("Profile incomplete - showing dialog");
+            showProfileSettingDialog();
+          } else {
+            console.log("Profile complete - no dialog needed");
+          }
+        })
+        .catch((error) => {
+          console.error("Firestore ユーザー情報取得エラー:", error);
+          isAdmin = false;
+          adminBtnTop.style.display = "none";
+        });
+    }
+
+    // プロフィール設定ダイアログを表示
+    function showProfileSettingDialog() {
+      profileSettingOverlay.classList.add("show");
+    }
+
+    // プロフィール設定を保存
+    function saveProfileToFirestore() {
+      if (!currentUser || !db || !isFirebaseConfigured) {
+        // デモモード時はローカルストレージに保存
+        localStorage.setItem("profile_name", profileName.value);
+        localStorage.setItem("profile_employeeId", profileEmployeeId.value);
+        localStorage.setItem("profile_department", profileDepartment.value);
+        profileSettingOverlay.classList.remove("show");
+        return;
+      }
+
+      db.collection("users").doc(currentUser.uid).update({
+        name: profileName.value,
+        employeeId: profileEmployeeId.value,
+        department: profileDepartment.value
+      })
+      .then(() => {
+        profileSettingOverlay.classList.remove("show");
+      })
+      .catch((error) => console.error("プロフィール保存エラー:", error));
+    }
+
     // 認証状態の変化を監視
     if (isFirebaseConfigured) {
       auth.onAuthStateChanged((user) => {
@@ -2165,12 +3608,22 @@
         if (user) {
           // ログイン時：Firestoreから今日のデータを読み込み
           loadAllPunchesFromFirestore();
+
+          // ログイン時：Firestoreから申請を読み込み
+          loadUserApplicationsFromFirestore();
+
+          // ログイン時：Firestoreから管理者フラグを取得
+          loadAdminFlagFromFirestore(user);
         } else {
           // ログアウト時：リスナーを削除
           if (firestoreUnsubscribe) {
             firestoreUnsubscribe();
             firestoreUnsubscribe = null;
           }
+          // ログアウト時：メモリをクリア
+          applications.length = 0;
+          isAdmin = false;
+          adminBtnTop.style.display = "none";
         }
       });
     } else {
@@ -2181,6 +3634,53 @@
     // イベントリスナー
     googleLoginBtn.addEventListener("click", loginWithGoogle);
     logoutBtn.addEventListener("click", logout);
+
+    // 管理者ボタンのクリックイベント
+    adminBtnTop.addEventListener("click", () => {
+      console.log("Admin button clicked");
+      adminPanel.classList.add("show");
+      setUIState(UIState.ADMIN);
+      loadAllUsersData();
+    });
+
+    // 管理者パネルを閉じるボタン
+    adminCloseBtn.addEventListener("click", () => {
+      adminPanel.classList.remove("show");
+      setUIState(UIState.HOME);
+    });
+
+    // 管理者タブのクリックイベント
+    const adminTab1 = document.getElementById("adminTab1");
+    const adminTab2 = document.getElementById("adminTab2");
+    const adminStatusTab = document.getElementById("adminStatusTab");
+    const adminApplicationsTab = document.getElementById("adminApplicationsTab");
+
+    if (adminTab1 && adminTab2 && adminStatusTab && adminApplicationsTab) {
+      adminTab1.addEventListener("click", () => {
+        adminTab1.classList.add("active");
+        adminTab2.classList.remove("active");
+        adminTab1.style.borderBottomColor = "#4a3f8f";
+        adminTab1.style.color = "#4a3f8f";
+        adminTab2.style.borderBottomColor = "transparent";
+        adminTab2.style.color = "#666";
+        adminStatusTab.style.display = "block";
+        adminApplicationsTab.style.display = "none";
+      });
+
+      adminTab2.addEventListener("click", () => {
+        adminTab1.classList.remove("active");
+        adminTab2.classList.add("active");
+        adminTab1.style.borderBottomColor = "transparent";
+        adminTab1.style.color = "#666";
+        adminTab2.style.borderBottomColor = "#4a3f8f";
+        adminTab2.style.color = "#4a3f8f";
+        adminStatusTab.style.display = "none";
+        adminApplicationsTab.style.display = "block";
+      });
+    }
+
+    // 管理者ダイアログボタンの初期化
+    initAdminDialogButtons();
   </script>
 </body>
 </html>
